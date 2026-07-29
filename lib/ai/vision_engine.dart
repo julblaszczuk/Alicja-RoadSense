@@ -241,13 +241,27 @@ class VisionEngine {
     }
   }
 
-  Map<int, List<dynamic>> _runInference(List<List<List<List<int>>>> input) {
-    final outputLocations = List.filled(1, List.filled(10, List.filled(4, 0.0)));
-    final outputClasses = List.filled(1, List.filled(10, 0.0));
-    final outputScores = List.filled(1, List.filled(10, 0.0));
+  Map<String, List<dynamic>> _runInference(List<List<List<List<int>>>> input) {
+    final interpreter = _interpreter!;
+    
+    // Sprawdź kształty output tensorów
+    final outputTensors = interpreter.getOutputTensors();
+    
+    // MobileNet SSD ma 4 outputy:
+    // 0: DetectionBoxes [1][num_detections][4]
+    // 1: DetectionClasses [1][num_detections]
+    // 2: DetectionScores [1][num_detections]
+    // 3: NumDetections [1]
+    
+    final numDetectionsShape = outputTensors[3].shape;
+    final maxDetections = numDetectionsShape[0]; // Zwykle 10 lub 25
+    
+    final outputLocations = List.generate(1, (_) => List.generate(maxDetections, (_) => List.filled(4, 0.0)));
+    final outputClasses = List.generate(1, (_) => List.filled(maxDetections, 0.0));
+    final outputScores = List.generate(1, (_) => List.filled(maxDetections, 0.0));
     final numDetections = List.filled(1, 0.0);
 
-    _interpreter!.run(input, {
+    interpreter.run(input, {
       0: outputLocations,
       1: outputClasses,
       2: outputScores,
@@ -255,32 +269,43 @@ class VisionEngine {
     });
 
     return {
-      0: outputLocations,
-      1: outputClasses,
-      2: outputScores,
-      3: numDetections,
+      'boxes': outputLocations,
+      'classes': outputClasses,
+      'scores': outputScores,
+      'num': numDetections,
     };
   }
 
   List<Detection> _postprocess(
-    Map<int, List<dynamic>> output,
+    Map<String, List<dynamic>> output,
     int imageWidth,
     int imageHeight,
   ) {
     final detections = <Detection>[];
-    final numDetections = (output[3]![0][0] as double).toInt();
+    
+    final numDetectionsList = output['num'] as List;
+    final numDetections = (numDetectionsList[0] as double).toInt();
+    
+    _logger.i('Detekcje: $numDetections');
+
+    final boxes = output['boxes'] as List;
+    final classes = output['classes'] as List;
+    final scores = output['scores'] as List;
 
     for (int i = 0; i < numDetections; i++) {
-      final score = (output[2]![0][i] as double);
+      final score = (scores[0][i] as double);
       if (score < _confidenceThreshold) continue;
 
-      final classId = (output[1]![0][i] as double).toInt();
+      final classId = (classes[0][i] as double).toInt();
       final label = _labels[classId] ?? 'unknown';
 
-      final ymin = (output[0]![0][i][0] as double) * imageWidth;
-      final xmin = (output[0]![0][i][1] as double) * imageHeight;
-      final ymax = (output[0]![0][i][2] as double) * imageWidth;
-      final xmax = (output[0]![0][i][3] as double) * imageHeight;
+      final box = boxes[0][i] as List;
+      final ymin = (box[0] as double) * imageHeight;
+      final xmin = (box[1] as double) * imageWidth;
+      final ymax = (box[2] as double) * imageHeight;
+      final xmax = (box[3] as double) * imageWidth;
+
+      _logger.i('Wykryto: $label (${(score * 100).toStringAsFixed(1)}%)');
 
       detections.add(
         Detection(

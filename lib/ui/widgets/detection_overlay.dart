@@ -4,16 +4,21 @@ import '../../core/theme/design_system.dart';
 
 class DetectionOverlay extends StatelessWidget {
   final List<Detection> detections;
+  final Detection? selectedDetection;
 
   const DetectionOverlay({
     super.key,
     required this.detections,
+    this.selectedDetection,
   });
 
   @override
   Widget build(BuildContext context) {
     return CustomPaint(
-      painter: _DetectionPainter(detections: detections),
+      painter: _DetectionPainter(
+        detections: detections,
+        selectedDetection: selectedDetection,
+      ),
       child: const SizedBox.expand(),
     );
   }
@@ -21,23 +26,29 @@ class DetectionOverlay extends StatelessWidget {
 
 class _DetectionPainter extends CustomPainter {
   final List<Detection> detections;
+  final Detection? selectedDetection;
 
-  _DetectionPainter({required this.detections});
+  _DetectionPainter({
+    required this.detections,
+    this.selectedDetection,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
     for (final detection in detections) {
-      _drawDetection(canvas, detection);
+      final isSelected = selectedDetection != null && 
+                         selectedDetection!.trackId == detection.trackId;
+      _drawDetection(canvas, detection, isSelected);
     }
   }
 
-  void _drawDetection(Canvas canvas, Detection detection) {
+  void _drawDetection(Canvas canvas, Detection detection, bool isSelected) {
     final color = _getRiskColor(detection.riskLevel);
 
     final boxPaint = Paint()
-      ..color = color
+      ..color = isSelected ? Colors.white : color
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 3.0
+      ..strokeWidth = isSelected ? 5.0 : 3.0
       ..strokeCap = StrokeCap.round;
 
     final rect = Rect.fromLTWH(
@@ -164,6 +175,7 @@ class _DetectionPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _DetectionPainter oldDelegate) {
-    return oldDelegate.detections != detections;
+    return oldDelegate.detections != detections ||
+           oldDelegate.selectedDetection != selectedDetection;
   }
 }
