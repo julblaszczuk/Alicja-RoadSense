@@ -124,9 +124,16 @@ class VisionEngine {
     }
 
     try {
+      _logger.i('Camera format: ${cameraImage.format.group}');
+      _logger.i('Camera size: ${cameraImage.width}x${cameraImage.height}');
+      _logger.i('Planes count: ${cameraImage.planes.length}');
+      
       final input = _preprocess(cameraImage);
       final output = _runInference(input);
-      return _postprocess(output, cameraImage.width, cameraImage.height);
+      final detections = _postprocess(output, cameraImage.width, cameraImage.height);
+      
+      _logger.i('Total detections: ${detections.length}');
+      return detections;
     } catch (e) {
       _logger.e('Detection error: $e');
       return _generateDemoDetections(cameraImage.width, cameraImage.height);

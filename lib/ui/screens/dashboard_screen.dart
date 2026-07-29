@@ -6,6 +6,7 @@ import '../../main.dart';
 import '../../ai/vision_engine.dart';
 import '../../ai/models.dart';
 import '../../ai/road_calibration.dart';
+import '../../ai/road_map_system.dart';
 import '../../core/theme/design_system.dart';
 import '../widgets/detection_overlay.dart';
 import '../widgets/risk_indicator.dart';
@@ -25,6 +26,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
   late CameraController _cameraController;
   late VisionEngine _visionEngine;
   final RoadCalibration _calibration = RoadCalibration();
+  final RoadMapSystem _roadMap = RoadMapSystem();
   
   List<Detection> _detections = [];
   bool _isProcessing = false;
@@ -39,6 +41,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
   
   // Panel powiadomień - rozwijany
   bool _showNotifications = false;
+  
+  // Panel mapy punktów
+  bool _showMapPanel = false;
+  
+  // Kontrola kamery
+  int _currentCameraIndex = 0;
+  bool _showCameraSelector = false;
   
   // Notification settings
   bool _notifyCollision = true;
@@ -63,12 +72,36 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
 
     _cameraController = CameraController(
       camera,
-      ResolutionPreset.high,
+      ResolutionPreset.medium, // Zmieniono z high na medium dla oszczędności energii
       enableAudio: false,
     );
 
     await _cameraController.initialize();
 
+    await _cameraController.startImageStream((image) {
+      if (!_isProcessing) {
+        _processFrame(image);
+      }
+    });
+
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _switchCamera() async {
+    if (cameras.length < 2) return;
+
+    await _cameraController.dispose();
+    
+    _currentCameraIndex = (_currentCameraIndex + 1) % cameras.length;
+    final newCamera = cameras[_currentCameraIndex];
+
+    _cameraController = CameraController(
+      newCamera,
+      ResolutionPreset.medium,
+      enableAudio: false,
+    );
+
+    await _cameraController.initialize();
     await _cameraController.startImageStream((image) {
       if (!_isProcessing) {
         _processFrame(image);
@@ -100,6 +133,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     for (final detection in detections) {
       if (!_shouldNotify(detection)) continue;
       
+      // Automatyczne wykrywanie robotów drogowych i wypadków
+      _checkForRoadHazards(detection);
+      
       if (detection.riskLevel == RiskLevel.critical || detection.riskLevel == RiskLevel.high) {
         if (!_showAlert) {
           setState(() {
@@ -118,6 +154,55 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
         break;
       }
     }
+  }
+
+  void _checkForRoadHazards(Detection detection) {
+    // Wykrywanie robotów drogowych (stożki, znaki robót)
+    if (detection.label == 'traffic cone' || detection.label == 'stop sign') {
+      _showReportSuggestion('Roboty drogowe', MapPointGroupType.roadWork);
+    }
+    
+    // Wykrywanie wypadków (uszkodzone pojazdy)
+    if (detection.label == 'car' && detection.confidence < 0.5) {
+      _showReportSuggestion('Możliwy wypadek', MapPointGroupType.accident);
+    }
+  }
+
+  void _showReportSuggestion(String message, MapPointGroupType type) {
+    // Pokaż sugestię zgłoszenia
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        action: SnackBarAction(
+          label: 'Zgłoś',
+          onPressed: () => _createReport(message, type),
+        ),
+        duration: const Duration(seconds: 5),
+      ),
+    );
+  }
+
+  void _createReport(String description, MapPointGroupType type) {
+    // TODO: Pobierz aktualną lokalizację GPS
+    final report = UserReport(
+      id: 'report-${DateTime.now().millisecondsSinceEpoch}',
+      type: type,
+      description: description,
+      location: MapPoint(
+        id: 'point-${DateTime.now().millisecondsSinceEpoch}',
+        latitude: 0.0, // TODO: Podmień na prawdziwą lokalizację
+        longitude: 0.0,
+      ),
+    );
+    
+    _roadMap.addReport(report);
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Zgłoszenie wysłane!'),
+        duration: Duration(seconds: 2),
+      ),
+    );
   }
 
   bool _shouldNotify(Detection detection) {
@@ -273,18 +358,31 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                 child: _buildSelectedDetectionCard(),
               ),
             
-            // Right side - Notification button + Calibration button
+            // Right side - Camera switch + Calibration + Map + Notification buttons
             Positioned(
               right: 20,
               top: 300,
               child: Column(
                 children: [
+                  _buildCameraSwitchButton(),
+                  const SizedBox(height: AppSpacing.md),
                   _buildCalibrationButton(),
+                  const SizedBox(height: AppSpacing.md),
+                  _buildMapButton(),
                   const SizedBox(height: AppSpacing.md),
                   _buildNotificationButton(),
                 ],
               ),
             ),
+            
+            // Map panel
+            if (_showMapPanel)
+              Positioned(
+                right: 80,
+                top: 300,
+                bottom: 200,
+                child: _buildMapPanel(),
+              ),
             
             // Expanded notification panel
             if (_showNotifications)
@@ -375,6 +473,26 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     );
   }
 
+  Widget _buildCameraSwitchButton() {
+    return GestureDetector(
+      onTap: _switchCamera,
+      child: Container(
+        width: 48,
+        height: 48,
+        decoration: BoxDecoration(
+          color: AppColors.surface.withOpacity(0.9),
+          shape: BoxShape.circle,
+          border: Border.all(color: AppColors.primary, width: 2),
+        ),
+        child: Icon(
+          Icons.switch_camera,
+          color: AppColors.primary,
+          size: 24,
+        ),
+      ),
+    );
+  }
+
   Widget _buildCalibrationButton() {
     return GestureDetector(
       onTap: () {
@@ -400,6 +518,303 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
         ),
       ),
     );
+  }
+
+  Widget _buildMapButton() {
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _showMapPanel = !_showMapPanel;
+          _showNotifications = false;
+        });
+      },
+      child: Container(
+        width: 48,
+        height: 48,
+        decoration: BoxDecoration(
+          color: _showMapPanel ? AppColors.primary : AppColors.surface.withOpacity(0.9),
+          shape: BoxShape.circle,
+          border: Border.all(color: AppColors.primary, width: 2),
+        ),
+        child: Icon(
+          _showMapPanel ? Icons.expand_less : Icons.map_outlined,
+          color: _showMapPanel ? Colors.white : AppColors.primary,
+          size: 24,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMapPanel() {
+    final groups = _roadMap.groups;
+    final reports = _roadMap.reports;
+
+    return Container(
+      width: 280,
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.surface.withOpacity(0.95),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(color: AppColors.primary, width: 2),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.map, color: AppColors.primary, size: 20),
+              const SizedBox(width: AppSpacing.sm),
+              Text(
+                'Mapa punktów',
+                style: AppTypography.bodySmall.copyWith(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          
+          // Grupy punktów
+          if (groups.isNotEmpty) ...[
+            Text(
+              'Grupy (${groups.length})',
+              style: AppTypography.caption.copyWith(
+                color: AppColors.textSecondary,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            Expanded(
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: groups.length,
+                itemBuilder: (context, index) {
+                  final group = groups[index];
+                  return _buildGroupItem(group);
+                },
+              ),
+            ),
+          ],
+          
+          const SizedBox(height: AppSpacing.md),
+          
+          // Zgłoszenia
+          if (reports.isNotEmpty) ...[
+            Text(
+              'Zgłoszenia (${reports.length})',
+              style: AppTypography.caption.copyWith(
+                color: AppColors.textSecondary,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            Expanded(
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: reports.length,
+                itemBuilder: (context, index) {
+                  final report = reports[index];
+                  return _buildReportItem(report);
+                },
+              ),
+            ),
+          ],
+          
+          // Przycisk ręcznego zgłoszenia
+          const SizedBox(height: AppSpacing.md),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () => _showManualReportDialog(),
+              icon: const Icon(Icons.add_alert, size: 18),
+              label: const Text('Zgłoś zdarzenie'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.warning,
+                padding: const EdgeInsets.symmetric(vertical: 8),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGroupItem(MapPointGroup group) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 4),
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: AppColors.glass,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: _getGroupColor(group.type), width: 1),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            _getGroupIcon(group.type),
+            color: _getGroupColor(group.type),
+            size: 16,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  group.name,
+                  style: AppTypography.caption.copyWith(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  '${group.points.length} pkt',
+                  style: AppTypography.caption.copyWith(fontSize: 10),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReportItem(UserReport report) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 4),
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: AppColors.glass,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: report.isVerified ? AppColors.success : AppColors.warning,
+          width: 1,
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            _getGroupIcon(report.type),
+            color: report.isVerified ? AppColors.success : AppColors.warning,
+            size: 16,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  report.description,
+                  style: AppTypography.caption.copyWith(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  report.isVerified ? 'Potwierdzone' : '${report.confirmationCount}/3',
+                  style: AppTypography.caption.copyWith(fontSize: 10),
+                ),
+              ],
+            ),
+          ),
+          if (!report.isVerified)
+            IconButton(
+              icon: const Icon(Icons.check_circle_outline, size: 16),
+              color: AppColors.success,
+              onPressed: () {
+                _roadMap.confirmReport(report.id);
+                setState(() {});
+              },
+            ),
+        ],
+      ),
+    );
+  }
+
+  void _showManualReportDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Zgłoś zdarzenie'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.construction),
+              title: const Text('Roboty drogowe'),
+              onTap: () {
+                Navigator.pop(context);
+                _createReport('Roboty drogowe', MapPointGroupType.roadWork);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.car_crash),
+              title: const Text('Wypadek'),
+              onTap: () {
+                Navigator.pop(context);
+                _createReport('Wypadek', MapPointGroupType.accident);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.pets),
+              title: const Text('Zwierzę na drodze'),
+              onTap: () {
+                Navigator.pop(context);
+                _createReport('Zwierzę na drodze', MapPointGroupType.temporary);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.warning),
+              title: const Text('Inne zagrożenie'),
+              onTap: () {
+                Navigator.pop(context);
+                _createReport('Inne zagrożenie', MapPointGroupType.custom);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Color _getGroupColor(MapPointGroupType type) {
+    switch (type) {
+      case MapPointGroupType.curb:
+        return AppColors.primary;
+      case MapPointGroupType.lane:
+        return AppColors.secondary;
+      case MapPointGroupType.temporary:
+        return AppColors.warning;
+      case MapPointGroupType.roadWork:
+        return Colors.orange;
+      case MapPointGroupType.accident:
+        return AppColors.danger;
+      case MapPointGroupType.trafficSign:
+        return AppColors.success;
+      case MapPointGroupType.custom:
+        return AppColors.textSecondary;
+    }
+  }
+
+  IconData _getGroupIcon(MapPointGroupType type) {
+    switch (type) {
+      case MapPointGroupType.curb:
+        return Icons.border_outer;
+      case MapPointGroupType.lane:
+        return Icons.alt_route;
+      case MapPointGroupType.temporary:
+        return Icons.hourglass_empty;
+      case MapPointGroupType.roadWork:
+        return Icons.construction;
+      case MapPointGroupType.accident:
+        return Icons.car_crash;
+      case MapPointGroupType.trafficSign:
+        return Icons.traffic;
+      case MapPointGroupType.custom:
+        return Icons.label;
+    }
   }
 
   Widget _buildNotificationButton() {
