@@ -33,8 +33,8 @@ class VisionEngine {
   }
 
   List<List<List<List<double>>>> _preprocess(CameraImage image) {
-    final inputSize = 300;
-    final imageBytes = image.planes[0].bytes;
+    const inputSize = 300;
+    final imageBytes = image.planes[0].bytes.buffer;
 
     final img.Image rgbImage = img.Image.fromBytes(
       width: image.width,
@@ -101,7 +101,7 @@ class VisionEngine {
         Detection(
           label: label,
           confidence: confidence,
-          bbox: Rect(
+          bbox: BoundingBox(
             left: left,
             top: top,
             width: right - left,

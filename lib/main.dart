@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:camera/camera.dart';
 
-import 'core/config.dart';
-import 'core/event_bus.dart';
 import 'ui/screens/dashboard_screen.dart';
 import 'ui/screens/splash_screen.dart';
 

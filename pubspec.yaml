@@ -56,10 +56,3 @@ flutter:
   assets:
     - assets/
     - models/
-
-  fonts:
-    - family: Roboto
-      fonts:
-        - asset: fonts/Roboto-Regular.ttf
-        - asset: fonts/Roboto-Bold.ttf
-          weight: 700

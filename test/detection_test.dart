@@ -7,7 +7,7 @@ void main() {
       final detection = Detection(
         label: 'car',
         confidence: 0.95,
-        bbox: Rect(left: 0, top: 0, width: 100, height: 100),
+        bbox: BoundingBox(left: 0, top: 0, width: 100, height: 100),
         trackId: 1,
       );
 
@@ -19,7 +19,7 @@ void main() {
       final detection = Detection(
         label: 'person',
         confidence: 0.88,
-        bbox: Rect(left: 0, top: 0, width: 50, height: 150),
+        bbox: BoundingBox(left: 0, top: 0, width: 50, height: 150),
         trackId: 2,
       );
 
@@ -31,7 +31,7 @@ void main() {
       final critical = Detection(
         label: 'car',
         confidence: 0.9,
-        bbox: Rect(left: 0, top: 0, width: 100, height: 100),
+        bbox: BoundingBox(left: 0, top: 0, width: 100, height: 100),
         ttc: 1.5,
         trackId: 3,
       );
@@ -39,7 +39,7 @@ void main() {
       final high = Detection(
         label: 'car',
         confidence: 0.9,
-        bbox: Rect(left: 0, top: 0, width: 100, height: 100),
+        bbox: BoundingBox(left: 0, top: 0, width: 100, height: 100),
         ttc: 3.0,
         trackId: 4,
       );
@@ -47,7 +47,7 @@ void main() {
       final medium = Detection(
         label: 'car',
         confidence: 0.9,
-        bbox: Rect(left: 0, top: 0, width: 100, height: 100),
+        bbox: BoundingBox(left: 0, top: 0, width: 100, height: 100),
         ttc: 5.0,
         trackId: 5,
       );
@@ -55,7 +55,7 @@ void main() {
       final low = Detection(
         label: 'car',
         confidence: 0.9,
-        bbox: Rect(left: 0, top: 0, width: 100, height: 100),
+        bbox: BoundingBox(left: 0, top: 0, width: 100, height: 100),
         ttc: 8.0,
         trackId: 6,
       );
@@ -67,18 +67,18 @@ void main() {
     });
   });
 
-  group('Rect', () {
+  group('BoundingBox', () {
     test('should calculate center correctly', () {
-      final rect = Rect(left: 10, top: 20, width: 100, height: 50);
+      final bbox = BoundingBox(left: 10, top: 20, width: 100, height: 50);
 
-      expect(rect.centerX, 60);
-      expect(rect.centerY, 45);
+      expect(bbox.centerX, 60);
+      expect(bbox.centerY, 45);
     });
 
     test('should calculate area correctly', () {
-      final rect = Rect(left: 0, top: 0, width: 100, height: 50);
+      final bbox = BoundingBox(left: 0, top: 0, width: 100, height: 50);
 
-      expect(rect.area, 5000);
+      expect(bbox.area, 5000);
     });
   });
 }

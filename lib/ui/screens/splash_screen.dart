@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:camera/camera.dart';
 import 'package:geolocator/geolocator.dart';
 
-import '../main.dart';
+import '../../main.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});

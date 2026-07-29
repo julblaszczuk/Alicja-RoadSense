@@ -1,7 +1,7 @@
 class Detection {
   final String label;
   final double confidence;
-  final Rect bbox;
+  final BoundingBox bbox;
   final double? distance;
   final double? velocity;
   final double? ttc;
@@ -42,13 +42,13 @@ enum RiskLevel {
   critical,
 }
 
-class Rect {
+class BoundingBox {
   final double left;
   final double top;
   final double width;
   final double height;
 
-  Rect({
+  BoundingBox({
     required this.left,
     required this.top,
     required this.width,

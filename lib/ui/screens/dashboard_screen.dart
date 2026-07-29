@@ -98,7 +98,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             left: 20,
             child: RiskIndicator(detections: _detections),
           ),
-          Positioned(
+          const Positioned(
             top: 40,
             right: 20,
             child: SpeedDisplay(),
