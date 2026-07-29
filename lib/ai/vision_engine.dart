@@ -258,7 +258,7 @@ class VisionEngine {
     // 2: DetectionScores [1][num_detections]
     // 3: NumDetections [1]
     
-    final maxDetections = 10; // Domyślna wartość
+    final maxDetections = 20; // Zgodnie z kształtem tensora [1, 20, 4]
     
     final outputLocations = List.generate(1, (_) => List.generate(maxDetections, (_) => List.filled(4, 0.0)));
     final outputClasses = List.generate(1, (_) => List.filled(maxDetections, 0.0));
