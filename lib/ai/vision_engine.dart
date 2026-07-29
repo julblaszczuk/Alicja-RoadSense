@@ -296,50 +296,69 @@ class VisionEngine {
     
     try {
       final numDetectionsList = output['num'] as List;
-      final numDetections = (numDetectionsList[0] as num).toInt();
+      if (numDetectionsList.isEmpty || numDetectionsList[0] == null) {
+        _logger.w('No detections found');
+        return detections;
+      }
       
+      final numDetections = (numDetectionsList[0] as num).toInt();
       _logger.i('Detekcje: $numDetections');
 
       final boxes = output['boxes'] as List;
       final classes = output['classes'] as List;
       final scores = output['scores'] as List;
 
+      if (boxes.isEmpty || classes.isEmpty || scores.isEmpty) {
+        _logger.w('Empty output arrays');
+        return detections;
+      }
+
       // Loguj wszystkie detekcje (nawet te poniżej threshold)
       for (int i = 0; i < numDetections; i++) {
-        final score = (scores[0][i] as num).toDouble();
-        final classId = (classes[0][i] as num).toInt();
-        final label = _labels[classId] ?? 'unknown';
-        _logger.i('  [$i] $label: ${(score * 100).toStringAsFixed(1)}%');
+        try {
+          final score = (scores[0][i] as num).toDouble();
+          final classId = (classes[0][i] as num).toInt();
+          final label = _labels[classId] ?? 'unknown';
+          _logger.i('  [$i] $label: ${(score * 100).toStringAsFixed(1)}%');
+        } catch (e) {
+          _logger.w('Error logging detection $i: $e');
+        }
       }
 
       for (int i = 0; i < numDetections; i++) {
-        final score = (scores[0][i] as num).toDouble();
-        if (score < _confidenceThreshold) continue;
+        try {
+          final score = (scores[0][i] as num).toDouble();
+          if (score < _confidenceThreshold) continue;
 
-        final classId = (classes[0][i] as num).toInt();
-        final label = _labels[classId] ?? 'unknown';
+          final classId = (classes[0][i] as num).toInt();
+          final label = _labels[classId] ?? 'unknown';
 
-        final box = boxes[0][i] as List;
-        final ymin = (box[0] as num).toDouble() * imageHeight;
-        final xmin = (box[1] as num).toDouble() * imageWidth;
-        final ymax = (box[2] as num).toDouble() * imageHeight;
-        final xmax = (box[3] as num).toDouble() * imageWidth;
+          final box = boxes[0][i] as List;
+          if (box.length < 4) continue;
+          
+          final ymin = (box[0] as num).toDouble() * imageHeight;
+          final xmin = (box[1] as num).toDouble() * imageWidth;
+          final ymax = (box[2] as num).toDouble() * imageHeight;
+          final xmax = (box[3] as num).toDouble() * imageWidth;
 
-        _logger.i('Wykryto: $label (${(score * 100).toStringAsFixed(1)}%)');
+          _logger.i('Wykryto: $label (${(score * 100).toStringAsFixed(1)}%)');
 
-        detections.add(
-          Detection(
-            label: label,
-            confidence: score,
-            bbox: BoundingBox(
-              left: xmin,
-              top: ymin,
-              width: xmax - xmin,
-              height: ymax - ymin,
+          detections.add(
+            Detection(
+              label: label,
+              confidence: score,
+              bbox: BoundingBox(
+                left: xmin,
+                top: ymin,
+                width: xmax - xmin,
+                height: ymax - ymin,
+              ),
+              trackId: i,
             ),
-            trackId: i,
-          ),
-        );
+          );
+        } catch (e) {
+          _logger.w('Error processing detection $i: $e');
+        }
       }
     } catch (e) {
       _logger.e('Postprocess error: $e');
