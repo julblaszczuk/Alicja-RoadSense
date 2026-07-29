@@ -289,7 +289,7 @@ class VisionEngine {
     
     try {
       final numDetectionsList = output['num'] as List;
-      final numDetections = (numDetectionsList[0] as double).toInt();
+      final numDetections = (numDetectionsList[0] as num).toInt();
       
       _logger.i('Detekcje: $numDetections');
 
@@ -299,24 +299,24 @@ class VisionEngine {
 
       // Loguj wszystkie detekcje (nawet te poniżej threshold)
       for (int i = 0; i < numDetections; i++) {
-        final score = (scores[0][i] as double);
-        final classId = (classes[0][i] as double).toInt();
+        final score = (scores[0][i] as num).toDouble();
+        final classId = (classes[0][i] as num).toInt();
         final label = _labels[classId] ?? 'unknown';
         _logger.i('  [$i] $label: ${(score * 100).toStringAsFixed(1)}%');
       }
 
       for (int i = 0; i < numDetections; i++) {
-        final score = (scores[0][i] as double);
+        final score = (scores[0][i] as num).toDouble();
         if (score < _confidenceThreshold) continue;
 
-        final classId = (classes[0][i] as double).toInt();
+        final classId = (classes[0][i] as num).toInt();
         final label = _labels[classId] ?? 'unknown';
 
         final box = boxes[0][i] as List;
-        final ymin = (box[0] as double) * imageHeight;
-        final xmin = (box[1] as double) * imageWidth;
-        final ymax = (box[2] as double) * imageHeight;
-        final xmax = (box[3] as double) * imageWidth;
+        final ymin = (box[0] as num).toDouble() * imageHeight;
+        final xmin = (box[1] as num).toDouble() * imageWidth;
+        final ymax = (box[2] as num).toDouble() * imageHeight;
+        final xmax = (box[3] as num).toDouble() * imageWidth;
 
         _logger.i('Wykryto: $label (${(score * 100).toStringAsFixed(1)}%)');
 
