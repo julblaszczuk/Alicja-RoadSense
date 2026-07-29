@@ -5,11 +5,13 @@ import 'package:camera/camera.dart';
 import '../../main.dart';
 import '../../ai/vision_engine.dart';
 import '../../ai/models.dart';
+import '../../ai/road_calibration.dart';
 import '../../core/theme/design_system.dart';
 import '../widgets/detection_overlay.dart';
 import '../widgets/risk_indicator.dart';
 import '../widgets/speed_display.dart';
 import '../widgets/alert_banner.dart';
+import '../widgets/calibration_overlay.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
@@ -22,6 +24,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     with TickerProviderStateMixin {
   late CameraController _cameraController;
   late VisionEngine _visionEngine;
+  final RoadCalibration _calibration = RoadCalibration();
+  
   List<Detection> _detections = [];
   bool _isProcessing = false;
   bool _showAlert = false;
@@ -29,6 +33,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
   bool _isRecording = false;
   Offset? _tapPosition;
   Detection? _selectedDetection;
+  
+  // Tryb kalibracji
+  bool _isCalibrating = false;
+  
+  // Panel powiadomień - rozwijany
+  bool _showNotifications = false;
   
   // Notification settings
   bool _notifyCollision = true;
@@ -125,6 +135,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
   }
 
   void _onTap(TapDownDetails details) {
+    // Tryb kalibracji - dodaj punkt
+    if (_isCalibrating) {
+      // TODO: Dodaj punkt do kalibracji
+      return;
+    }
+    
     setState(() {
       _tapPosition = details.localPosition;
       
@@ -199,6 +215,19 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
               selectedDetection: _selectedDetection,
             ),
             
+            // Calibration overlay
+            if (_isCalibrating)
+              Positioned.fill(
+                child: GestureDetector(
+                  onTapDown: (details) {
+                    // TODO: Dodaj punkt kalibracyjny
+                  },
+                  child: CalibrationOverlay(
+                    calibration: _calibration,
+                  ),
+                ),
+              ),
+            
             // Top bar - Risk indicator + Speed
             Positioned(
               top: 60,
@@ -244,12 +273,26 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                 child: _buildSelectedDetectionCard(),
               ),
             
-            // Right side - Notification settings panel
+            // Right side - Notification button + Calibration button
             Positioned(
               right: 20,
               top: 300,
-              child: _buildNotificationPanel(),
+              child: Column(
+                children: [
+                  _buildCalibrationButton(),
+                  const SizedBox(height: AppSpacing.md),
+                  _buildNotificationButton(),
+                ],
+              ),
             ),
+            
+            // Expanded notification panel
+            if (_showNotifications)
+              Positioned(
+                right: 80,
+                top: 300,
+                child: _buildNotificationPanel(),
+              ),
             
             // Record button (right side)
             Positioned(
@@ -332,13 +375,68 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     );
   }
 
+  Widget _buildCalibrationButton() {
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _isCalibrating = !_isCalibrating;
+        });
+      },
+      child: Container(
+        width: 48,
+        height: 48,
+        decoration: BoxDecoration(
+          color: _isCalibrating ? AppColors.warning : AppColors.surface.withOpacity(0.9),
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: _isCalibrating ? AppColors.warning : AppColors.primary,
+            width: 2,
+          ),
+        ),
+        child: Icon(
+          _isCalibrating ? Icons.edit : Icons.route,
+          color: _isCalibrating ? Colors.white : AppColors.primary,
+          size: 24,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNotificationButton() {
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _showNotifications = !_showNotifications;
+        });
+      },
+      child: Container(
+        width: 48,
+        height: 48,
+        decoration: BoxDecoration(
+          color: _showNotifications ? AppColors.primary : AppColors.surface.withOpacity(0.9),
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: AppColors.primary,
+            width: 2,
+          ),
+        ),
+        child: Icon(
+          _showNotifications ? Icons.expand_less : Icons.notifications_outlined,
+          color: _showNotifications ? Colors.white : AppColors.primary,
+          size: 24,
+        ),
+      ),
+    );
+  }
+
   Widget _buildNotificationPanel() {
     return Container(
+      width: 200,
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        color: AppColors.surface.withOpacity(0.9),
+        color: AppColors.surface.withOpacity(0.95),
         borderRadius: BorderRadius.circular(AppRadius.lg),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: AppColors.primary, width: 2),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

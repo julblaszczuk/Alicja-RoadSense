@@ -13,7 +13,7 @@ class VisionEngine {
   bool _modelAvailable = false;
 
   static const int _inputSize = 300;
-  static const double _confidenceThreshold = 0.6;
+  static const double _confidenceThreshold = 0.4; // Obniżony dla testów
 
   static const Map<int, String> _labels = {
     0: 'background',
@@ -291,6 +291,14 @@ class VisionEngine {
     final boxes = output['boxes'] as List;
     final classes = output['classes'] as List;
     final scores = output['scores'] as List;
+
+    // Loguj wszystkie detekcje (nawet te poniżej threshold)
+    for (int i = 0; i < numDetections; i++) {
+      final score = (scores[0][i] as double);
+      final classId = (classes[0][i] as double).toInt();
+      final label = _labels[classId] ?? 'unknown';
+      _logger.i('  [$i] $label: ${(score * 100).toStringAsFixed(1)}%');
+    }
 
     for (int i = 0; i < numDetections; i++) {
       final score = (scores[0][i] as double);
