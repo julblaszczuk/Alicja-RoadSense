@@ -8,12 +8,20 @@ import 'ui/screens/splash_screen.dart';
 import 'ui/screens/settings_screen.dart';
 import 'ui/screens/trip_history_screen.dart';
 
-late List<CameraDescription> cameras;
+List<CameraDescription> cameras = [];
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  cameras = await availableCameras();
+  try {
+    cameras = await availableCameras();
+    if (cameras.isEmpty) {
+      debugPrint('Warning: No cameras available');
+    }
+  } catch (e) {
+    debugPrint('Error loading cameras: $e');
+    cameras = [];
+  }
 
   runApp(
     const ProviderScope(

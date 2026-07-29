@@ -43,6 +43,7 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _checkPermissions() async {
+    // Sprawdź uprawnienia lokalizacji
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
       throw 'Location services are disabled.';
@@ -60,8 +61,13 @@ class _SplashScreenState extends State<SplashScreen> {
       throw 'Location permissions are permanently denied.';
     }
 
-    if (cameras.isEmpty) {
-      throw 'No cameras available.';
+    // Sprawdź dostępność kamer
+    try {
+      if (cameras.isEmpty) {
+        throw 'No cameras available.';
+      }
+    } catch (e) {
+      throw 'Camera initialization failed: $e';
     }
   }
 

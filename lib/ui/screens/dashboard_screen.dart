@@ -23,7 +23,7 @@ class DashboardScreen extends ConsumerStatefulWidget {
 
 class _DashboardScreenState extends ConsumerState<DashboardScreen>
     with TickerProviderStateMixin {
-  late CameraController _cameraController;
+  CameraController? _cameraController;
   late VisionEngine _visionEngine;
   final RoadCalibration _calibration = RoadCalibration();
   final RoadMapSystem _roadMap = RoadMapSystem();
@@ -65,6 +65,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
   }
 
   Future<void> _initializeCamera() async {
+    if (cameras.isEmpty) {
+      debugPrint('No cameras available');
+      return;
+    }
+
     final camera = cameras.firstWhere(
       (c) => c.lensDirection == CameraLensDirection.back,
       orElse: () => cameras.first,
@@ -72,25 +77,29 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
 
     _cameraController = CameraController(
       camera,
-      ResolutionPreset.medium, // Zmieniono z high na medium dla oszczędności energii
+      ResolutionPreset.medium,
       enableAudio: false,
     );
 
-    await _cameraController.initialize();
+    try {
+      await _cameraController?.initialize();
 
-    await _cameraController.startImageStream((image) {
-      if (!_isProcessing) {
-        _processFrame(image);
-      }
-    });
+      await _cameraController?.startImageStream((image) {
+        if (!_isProcessing) {
+          _processFrame(image);
+        }
+      });
 
-    if (mounted) setState(() {});
+      if (mounted) setState(() {});
+    } catch (e) {
+      debugPrint('Camera initialization error: $e');
+    }
   }
 
   Future<void> _switchCamera() async {
     if (cameras.length < 2) return;
 
-    await _cameraController.dispose();
+    await _cameraController?.dispose();
     
     _currentCameraIndex = (_currentCameraIndex + 1) % cameras.length;
     final newCamera = cameras[_currentCameraIndex];
@@ -101,14 +110,18 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
       enableAudio: false,
     );
 
-    await _cameraController.initialize();
-    await _cameraController.startImageStream((image) {
-      if (!_isProcessing) {
-        _processFrame(image);
-      }
-    });
+    try {
+      await _cameraController!.initialize();
+      await _cameraController!.startImageStream((image) {
+        if (!_isProcessing) {
+          _processFrame(image);
+        }
+      });
 
-    if (mounted) setState(() {});
+      if (mounted) setState(() {});
+    } catch (e) {
+      debugPrint('Camera switch error: $e');
+    }
   }
 
   Future<void> _processFrame(CameraImage image) async {
@@ -251,33 +264,68 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
   }
 
   void _toggleRecording() async {
+    if (_cameraController == null) return;
+
     setState(() {
       _isRecording = !_isRecording;
     });
 
-    if (_isRecording) {
-      await _cameraController.startVideoRecording();
-    } else {
-      final video = await _cameraController.stopVideoRecording();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Nagranie zapisane: ${video.path}'),
-          duration: const Duration(seconds: 2),
-        ),
-      );
+    try {
+      if (_isRecording) {
+        await _cameraController!.startVideoRecording();
+      } else {
+        final video = await _cameraController!.stopVideoRecording();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Nagranie zapisane: ${video.path}'),
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('Recording error: $e');
+      setState(() {
+        _isRecording = false;
+      });
     }
   }
 
   @override
   void dispose() {
-    _cameraController.dispose();
+    _cameraController?.dispose();
     _visionEngine.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    if (!_cameraController.value.isInitialized) {
+    if (cameras.isEmpty) {
+      return const Scaffold(
+        backgroundColor: AppColors.background,
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.videocam_off, size: 64, color: AppColors.textSecondary),
+              SizedBox(height: 16),
+              Text(
+                'Brak dostępu do kamery',
+                style: AppTypography.h3,
+              ),
+              SizedBox(height: 8),
+              Text(
+                'Aplikacja wymaga kamery do działania',
+                style: AppTypography.bodySmall,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (!_cameraController!.value.isInitialized) {
       return const Scaffold(
         backgroundColor: AppColors.background,
         body: Center(
@@ -294,7 +342,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
         onTapDown: _onTap,
         child: Stack(
           children: [
-            CameraPreview(_cameraController),
+            CameraPreview(_cameraController!),
             DetectionOverlay(
               detections: _detections,
               selectedDetection: _selectedDetection,
