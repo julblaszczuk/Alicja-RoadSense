@@ -1,0 +1,54 @@
+{
+  "name": "Alicja RoadSense",
+  "description": "AI-powered driving assistant with real-time collision detection",
+  "version": "1.0.0",
+  "rules": [
+    {
+      "description": "Always read AGENTS.md before starting work",
+      "globs": ["**/*.dart"],
+      "action": "read_file",
+      "file": "AGENTS.md"
+    },
+    {
+      "description": "Run flutter analyze before committing",
+      "globs": ["**/*.dart"],
+      "action": "run_command",
+      "command": "flutter analyze"
+    },
+    {
+      "description": "Run tests before committing",
+      "globs": ["**/*.dart"],
+      "action": "run_command",
+      "command": "flutter test"
+    }
+  ],
+  "context": {
+    "architecture": "lib/",
+    "tests": "test/",
+    "docs": ["README.md", "ARCHITECTURE.md", "AGENTS.md", "SETUP.md"]
+  },
+  "conventions": {
+    "language": "English",
+    "commit_style": "conventional_commits",
+    "code_style": "dart_effective_dart",
+    "state_management": "riverpod",
+    "testing": "flutter_test"
+  },
+  "safety": {
+    "critical": true,
+    "rules": [
+      "Never block UI thread",
+      "Always handle errors",
+      "Fail safely with warnings",
+      "Never upload media without consent",
+      "Optimize for battery"
+    ]
+  },
+  "performance": {
+    "frame_processing_ms": 50,
+    "detection_to_alert_ms": 100,
+    "end_to_end_ms": 150,
+    "max_memory_mb": 500,
+    "max_battery_percent_per_hour": 15
+  }
+}

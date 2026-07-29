@@ -1,0 +1,84 @@
+# Alicja RoadSense - Cursor Rules
+
+## Project Context
+
+Flutter mobile app: AI-powered driving assistant with real-time collision detection.
+Safety-critical. Offline-first. All AI runs on-device via TFLite.
+
+## Tech Stack
+
+- Flutter 3.5+ / Dart
+- State: Riverpod
+- AI: TensorFlow Lite (on-device)
+- Camera: camera package
+- Location: geolocator
+- Maps: mapbox_maps_flutter
+- DB: sqflite
+
+## Code Style
+
+- Language: English (all code, comments, commits, docs)
+- Naming: camelCase (variables/functions), PascalCase (classes), snake_case (files)
+- Use `final` for immutable fields
+- Use `const` constructors where possible
+- Prefer explicit types over `dynamic`
+- Single responsibility per class/file
+
+## Architecture Rules
+
+```
+lib/
+├── core/        # Infrastructure: event bus, config, DI
+├── sensors/     # Hardware: camera, GPS, IMU
+├── ai/          # ML: vision engine, tracker, predictor
+├── alerts/      # Alert system: audio, haptic, visual
+├── navigation/  # Maps, routing
+├── data/        # Local storage: SQLite, repositories
+└── ui/          # Screens, widgets
+```
+
+- **No circular dependencies** between layers
+- **Sensors** produce data → **AI** processes → **Alerts** notify → **UI** displays
+- **Event bus** for cross-cutting communication
+- **Riverpod** for state management
+
+## Safety Rules (CRITICAL)
+
+1. Never block the main UI thread
+2. Always handle errors gracefully
+3. Fail safely: show warning, don't crash
+4. Never upload video/images without consent
+5. Optimize for battery (<15%/hour)
+6. Test on real devices, not just emulators
+
+## Performance Targets
+
+- Frame processing: <50ms
+- Detection → alert: <100ms
+- End-to-end: <150ms
+- Memory: <500MB
+- Battery: <15%/hour
+
+## Git
+
+- Conventional Commits: `feat(scope): description`
+- Branch: `feature/*`, `fix/*`, `refactor/*`, `docs/*`
+- Always run `flutter analyze` before commit
+- Always run `flutter test` before commit
+
+## When Editing
+
+- Read existing code patterns first
+- Follow the same style as surrounding code
+- Add tests for new logic
+- Update AGENTS.md if architecture changes
+- Keep imports organized (dart, package, relative)
+
+## Do NOT
+
+- Use `print()` in production → use `logger`
+- Leave TODO comments without issue reference
+- Add dependencies without checking alternatives
+- Modify TFLite models without benchmarking
+- Skip error handling in async code
+- Commit generated files or large binaries
