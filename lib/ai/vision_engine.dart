@@ -1,4 +1,3 @@
-import 'dart:typed_data';
 import 'package:camera/camera.dart';
 import 'package:tflite_flutter/tflite_flutter.dart';
 import 'package:image/image.dart' as img;
@@ -134,31 +133,19 @@ class VisionEngine {
     }
   }
 
-  List<List<List<List<double>>>> _preprocess(CameraImage image) {
+  List<List<List<List<int>>>> _preprocess(CameraImage image) {
     final width = image.width;
     final height = image.height;
 
-    final rgbBytes = Uint8List(width * height * 3);
+    final rgbImage = img.Image(width: width, height: height);
 
     if (image.format.group == ImageFormatGroup.yuv420) {
-      _convertYuv420ToRgb(image, rgbBytes, width, height);
+      _convertYuv420ToImage(image, rgbImage);
     } else if (image.format.group == ImageFormatGroup.bgra8888) {
-      _convertBgra888ToRgb(image, rgbBytes, width, height);
+      _convertBgra888ToImage(image, rgbImage);
     } else {
-      final bytes = image.planes[0].bytes;
-      for (int i = 0; i < width * height && i * 4 + 2 < bytes.length; i++) {
-        rgbBytes[i * 3] = bytes[i * 4];
-        rgbBytes[i * 3 + 1] = bytes[i * 4 + 1];
-        rgbBytes[i * 3 + 2] = bytes[i * 4 + 2];
-      }
+      _convertDefaultToImage(image, rgbImage);
     }
-
-    final rgbImage = img.Image.fromBytes(
-      width: width,
-      height: height,
-      bytes: rgbBytes.buffer,
-      numChannels: 3,
-    );
 
     final resized = img.copyResize(
       rgbImage,
@@ -175,9 +162,9 @@ class VisionEngine {
           (x) {
             final pixel = resized.getPixel(x, y);
             return [
-              pixel.r / 255.0,
-              pixel.g / 255.0,
-              pixel.b / 255.0,
+              pixel.r.toInt().clamp(0, 255),
+              pixel.g.toInt().clamp(0, 255),
+              pixel.b.toInt().clamp(0, 255),
             ];
           },
         ),
@@ -185,22 +172,31 @@ class VisionEngine {
     );
   }
 
-  void _convertYuv420ToRgb(CameraImage image, Uint8List rgbBytes, int width, int height) {
+  void _convertYuv420ToImage(CameraImage image, img.Image rgbImage) {
     final yPlane = image.planes[0];
     final uPlane = image.planes[1];
     final vPlane = image.planes[2];
+
+    final width = image.width;
+    final height = image.height;
 
     final yBytes = yPlane.bytes;
     final uBytes = uPlane.bytes;
     final vBytes = vPlane.bytes;
 
+    final yRowStride = yPlane.bytesPerRow;
+    final yPixelStride = yPlane.bytesPerPixel ?? 1;
     final uvRowStride = uPlane.bytesPerRow;
     final uvPixelStride = uPlane.bytesPerPixel ?? 1;
 
     for (int y = 0; y < height; y++) {
       for (int x = 0; x < width; x++) {
-        final yIndex = y * yPlane.bytesPerRow + x * yPlane.bytesPerPixel!;
+        final yIndex = y * yRowStride + x * yPixelStride;
         final uvIndex = (y ~/ 2) * uvRowStride + (x ~/ 2) * uvPixelStride;
+
+        if (yIndex >= yBytes.length || uvIndex >= uBytes.length || uvIndex >= vBytes.length) {
+          continue;
+        }
 
         final yVal = yBytes[yIndex] & 0xFF;
         final uVal = uBytes[uvIndex] & 0xFF;
@@ -210,27 +206,42 @@ class VisionEngine {
         int g = (yVal - 0.337633 * (uVal - 128) - 0.698001 * (vVal - 128)).round().clamp(0, 255);
         int b = (yVal + 1.732446 * (uVal - 128)).round().clamp(0, 255);
 
-        final rgbIndex = (y * width + x) * 3;
-        rgbBytes[rgbIndex] = r;
-        rgbBytes[rgbIndex + 1] = g;
-        rgbBytes[rgbIndex + 2] = b;
+        rgbImage.setPixelRgb(x, y, r, g, b);
       }
     }
   }
 
-  void _convertBgra888ToRgb(CameraImage image, Uint8List rgbBytes, int width, int height) {
+  void _convertBgra888ToImage(CameraImage image, img.Image rgbImage) {
     final bytes = image.planes[0].bytes;
-    for (int i = 0; i < width * height; i++) {
-      final offset = i * 4;
-      if (offset + 2 < bytes.length) {
-        rgbBytes[i * 3] = bytes[offset + 2];
-        rgbBytes[i * 3 + 1] = bytes[offset + 1];
-        rgbBytes[i * 3 + 2] = bytes[offset];
+    final width = image.width;
+    final height = image.height;
+
+    for (int y = 0; y < height; y++) {
+      for (int x = 0; x < width; x++) {
+        final offset = (y * width + x) * 4;
+        if (offset + 2 < bytes.length) {
+          rgbImage.setPixelRgb(x, y, bytes[offset + 2], bytes[offset + 1], bytes[offset]);
+        }
       }
     }
   }
 
-  Map<int, List<dynamic>> _runInference(List<List<List<List<double>>>> input) {
+  void _convertDefaultToImage(CameraImage image, img.Image rgbImage) {
+    final bytes = image.planes[0].bytes;
+    final width = image.width;
+    final height = image.height;
+
+    for (int y = 0; y < height; y++) {
+      for (int x = 0; x < width; x++) {
+        final offset = (y * width + x) * 4;
+        if (offset + 2 < bytes.length) {
+          rgbImage.setPixelRgb(x, y, bytes[offset], bytes[offset + 1], bytes[offset + 2]);
+        }
+      }
+    }
+  }
+
+  Map<int, List<dynamic>> _runInference(List<List<List<List<int>>>> input) {
     final outputLocations = List.filled(1, List.filled(10, List.filled(4, 0.0)));
     final outputClasses = List.filled(1, List.filled(10, 0.0));
     final outputScores = List.filled(1, List.filled(10, 0.0));
