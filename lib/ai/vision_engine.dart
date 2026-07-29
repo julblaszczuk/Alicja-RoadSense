@@ -247,14 +247,18 @@ class VisionEngine {
     // Sprawdź kształty output tensorów
     final outputTensors = interpreter.getOutputTensors();
     
+    _logger.i('Output tensors: ${outputTensors.length}');
+    for (int i = 0; i < outputTensors.length; i++) {
+      _logger.i('  Tensor $i: ${outputTensors[i].shape}');
+    }
+    
     // MobileNet SSD ma 4 outputy:
     // 0: DetectionBoxes [1][num_detections][4]
     // 1: DetectionClasses [1][num_detections]
     // 2: DetectionScores [1][num_detections]
     // 3: NumDetections [1]
     
-    final numDetectionsShape = outputTensors[3].shape;
-    final maxDetections = numDetectionsShape[0]; // Zwykle 10 lub 25
+    final maxDetections = 10; // Domyślna wartość
     
     final outputLocations = List.generate(1, (_) => List.generate(maxDetections, (_) => List.filled(4, 0.0)));
     final outputClasses = List.generate(1, (_) => List.filled(maxDetections, 0.0));
@@ -283,51 +287,55 @@ class VisionEngine {
   ) {
     final detections = <Detection>[];
     
-    final numDetectionsList = output['num'] as List;
-    final numDetections = (numDetectionsList[0] as double).toInt();
-    
-    _logger.i('Detekcje: $numDetections');
+    try {
+      final numDetectionsList = output['num'] as List;
+      final numDetections = (numDetectionsList[0] as double).toInt();
+      
+      _logger.i('Detekcje: $numDetections');
 
-    final boxes = output['boxes'] as List;
-    final classes = output['classes'] as List;
-    final scores = output['scores'] as List;
+      final boxes = output['boxes'] as List;
+      final classes = output['classes'] as List;
+      final scores = output['scores'] as List;
 
-    // Loguj wszystkie detekcje (nawet te poniżej threshold)
-    for (int i = 0; i < numDetections; i++) {
-      final score = (scores[0][i] as double);
-      final classId = (classes[0][i] as double).toInt();
-      final label = _labels[classId] ?? 'unknown';
-      _logger.i('  [$i] $label: ${(score * 100).toStringAsFixed(1)}%');
-    }
+      // Loguj wszystkie detekcje (nawet te poniżej threshold)
+      for (int i = 0; i < numDetections; i++) {
+        final score = (scores[0][i] as double);
+        final classId = (classes[0][i] as double).toInt();
+        final label = _labels[classId] ?? 'unknown';
+        _logger.i('  [$i] $label: ${(score * 100).toStringAsFixed(1)}%');
+      }
 
-    for (int i = 0; i < numDetections; i++) {
-      final score = (scores[0][i] as double);
-      if (score < _confidenceThreshold) continue;
+      for (int i = 0; i < numDetections; i++) {
+        final score = (scores[0][i] as double);
+        if (score < _confidenceThreshold) continue;
 
-      final classId = (classes[0][i] as double).toInt();
-      final label = _labels[classId] ?? 'unknown';
+        final classId = (classes[0][i] as double).toInt();
+        final label = _labels[classId] ?? 'unknown';
 
-      final box = boxes[0][i] as List;
-      final ymin = (box[0] as double) * imageHeight;
-      final xmin = (box[1] as double) * imageWidth;
-      final ymax = (box[2] as double) * imageHeight;
-      final xmax = (box[3] as double) * imageWidth;
+        final box = boxes[0][i] as List;
+        final ymin = (box[0] as double) * imageHeight;
+        final xmin = (box[1] as double) * imageWidth;
+        final ymax = (box[2] as double) * imageHeight;
+        final xmax = (box[3] as double) * imageWidth;
 
-      _logger.i('Wykryto: $label (${(score * 100).toStringAsFixed(1)}%)');
+        _logger.i('Wykryto: $label (${(score * 100).toStringAsFixed(1)}%)');
 
-      detections.add(
-        Detection(
-          label: label,
-          confidence: score,
-          bbox: BoundingBox(
-            left: xmin,
-            top: ymin,
-            width: xmax - xmin,
-            height: ymax - ymin,
+        detections.add(
+          Detection(
+            label: label,
+            confidence: score,
+            bbox: BoundingBox(
+              left: xmin,
+              top: ymin,
+              width: xmax - xmin,
+              height: ymax - ymin,
+            ),
+            trackId: i,
           ),
-          trackId: i,
-        ),
-      );
+        );
+      }
+    } catch (e) {
+      _logger.e('Postprocess error: $e');
     }
 
     return detections;
