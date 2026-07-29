@@ -1,21 +1,50 @@
 import 'package:flutter/material.dart';
+import '../../core/theme/design_system.dart';
 import '../../ai/models.dart';
 
 class RiskIndicator extends StatelessWidget {
   final List<Detection> detections;
+  final RiskLevel? overrideRisk;
 
-  const RiskIndicator({super.key, required this.detections});
+  const RiskIndicator({
+    super.key,
+    required this.detections,
+    this.overrideRisk,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final maxRisk = _calculateMaxRisk();
+    final riskLevel = overrideRisk ?? _calculateMaxRisk();
+    final riskColor = _getRiskColor(riskLevel);
+    final riskLabel = _getRiskLabel(riskLevel);
+    final riskIcon = _getRiskIcon(riskLevel);
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.lg,
+        vertical: AppSpacing.md,
+      ),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.7),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _getRiskColor(maxRisk), width: 2),
+        gradient: LinearGradient(
+          colors: [
+            riskColor.withOpacity(0.2),
+            riskColor.withOpacity(0.05),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(AppRadius.xl),
+        border: Border.all(
+          color: riskColor.withOpacity(0.5),
+          width: 2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: riskColor.withOpacity(0.3),
+            blurRadius: 20,
+            spreadRadius: 2,
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -24,29 +53,40 @@ class RiskIndicator extends StatelessWidget {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                Icons.shield,
-                color: _getRiskColor(maxRisk),
-                size: 24,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                _getRiskLabel(maxRisk),
-                style: TextStyle(
-                  color: _getRiskColor(maxRisk),
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
+              Container(
+                padding: const EdgeInsets.all(AppSpacing.sm),
+                decoration: BoxDecoration(
+                  color: riskColor.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(AppRadius.sm),
+                ),
+                child: Icon(
+                  riskIcon,
+                  color: riskColor,
+                  size: 28,
                 ),
               ),
+              const SizedBox(width: AppSpacing.md),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    riskLabel,
+                    style: AppTypography.h3.copyWith(
+                      color: riskColor,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${detections.length} obiektów',
+                    style: AppTypography.caption.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
             ],
-          ),
-          const SizedBox(height: 4),
-          Text(
-            '${detections.length} objects detected',
-            style: const TextStyle(
-              color: Colors.white70,
-              fontSize: 12,
-            ),
           ),
         ],
       ),
@@ -70,26 +110,39 @@ class RiskIndicator extends StatelessWidget {
   Color _getRiskColor(RiskLevel level) {
     switch (level) {
       case RiskLevel.critical:
-        return Colors.red;
+        return AppColors.riskCritical;
       case RiskLevel.high:
-        return Colors.orange;
+        return AppColors.riskHigh;
       case RiskLevel.medium:
-        return Colors.yellow;
+        return AppColors.riskMedium;
       case RiskLevel.low:
-        return Colors.green;
+        return AppColors.riskLow;
     }
   }
 
   String _getRiskLabel(RiskLevel level) {
     switch (level) {
       case RiskLevel.critical:
-        return 'CRITICAL';
+        return 'KRYTYCZNE';
       case RiskLevel.high:
-        return 'HIGH RISK';
+        return 'WYSOKIE';
       case RiskLevel.medium:
-        return 'MEDIUM';
+        return 'ŚREDNIE';
       case RiskLevel.low:
-        return 'SAFE';
+        return 'BEZPIECZNE';
+    }
+  }
+
+  IconData _getRiskIcon(RiskLevel level) {
+    switch (level) {
+      case RiskLevel.critical:
+        return Icons.warning_amber_rounded;
+      case RiskLevel.high:
+        return Icons.error_outline;
+      case RiskLevel.medium:
+        return Icons.info_outline;
+      case RiskLevel.low:
+        return Icons.check_circle_outline;
     }
   }
 }

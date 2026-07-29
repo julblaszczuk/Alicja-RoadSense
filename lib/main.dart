@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:camera/camera.dart';
 
+import 'core/theme/app_theme.dart';
 import 'ui/screens/dashboard_screen.dart';
 import 'ui/screens/splash_screen.dart';
+import 'ui/screens/settings_screen.dart';
+import 'ui/screens/trip_history_screen.dart';
 
 late List<CameraDescription> cameras;
 
@@ -27,17 +30,12 @@ class AlicjaRoadSenseApp extends StatelessWidget {
     return MaterialApp(
       title: 'Alicja RoadSense',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF1E88E5),
-          brightness: Brightness.dark,
-        ),
-        useMaterial3: true,
-        fontFamily: 'Roboto',
-      ),
+      theme: AppTheme.darkTheme,
       home: const SplashScreen(),
       routes: {
         '/dashboard': (context) => const DashboardScreen(),
+        '/settings': (context) => const SettingsScreen(),
+        '/history': (context) => const TripHistoryScreen(),
       },
     );
   }
