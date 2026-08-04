@@ -10,6 +10,7 @@ import '../../ai/road_map_system.dart';
 import '../../core/theme/design_system.dart';
 import '../../core/settings_provider.dart';
 import '../../core/alert_manager.dart';
+import '../../core/gps_provider.dart';
 import '../widgets/detection_overlay.dart';
 import '../widgets/risk_indicator.dart';
 import '../widgets/speed_display.dart';
@@ -66,6 +67,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     super.initState();
     _initializeCamera();
     _visionEngine = VisionEngine();
+    _initializeGps();
     
     // Nasłuchuj zmian ustawień
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -78,6 +80,14 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
         _alertManager.setSettings(next);
       });
     });
+  }
+
+  Future<void> _initializeGps() async {
+    final gpsManager = ref.read(gpsManagerProvider);
+    final hasPermission = await gpsManager.checkPermissions();
+    if (hasPermission) {
+      gpsManager.startLocationUpdates();
+    }
   }
 
   Future<void> _initializeCamera() async {
@@ -322,6 +332,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     _cameraController?.dispose();
     _visionEngine.dispose();
     _alertManager.dispose();
+    ref.read(gpsManagerProvider).stopLocationUpdates();
     super.dispose();
   }
 
@@ -403,7 +414,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                   const SizedBox(width: AppSpacing.md),
                   const SpeedDisplay(),
                   const SizedBox(width: AppSpacing.md),
-                  const MiniMapWidget(),
+                  _buildMiniMap(),
                 ],
               ),
             ),
@@ -1031,6 +1042,19 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
           size: 32,
         ),
       ),
+    );
+  }
+
+  Widget _buildMiniMap() {
+    final gpsAsync = ref.watch(gpsPositionProvider);
+    return gpsAsync.when(
+      data: (position) => MiniMapWidget(
+        latitude: position.latitude,
+        longitude: position.longitude,
+        heading: position.heading,
+      ),
+      loading: () => const MiniMapWidget(),
+      error: (_, __) => const MiniMapWidget(),
     );
   }
 
