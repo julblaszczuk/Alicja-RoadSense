@@ -48,7 +48,7 @@ class BoundingBox {
   final double width;
   final double height;
 
-  BoundingBox({
+  const BoundingBox({
     required this.left,
     required this.top,
     required this.width,
