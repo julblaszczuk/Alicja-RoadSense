@@ -1,4 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../models.dart';
+import '../risk_scorer.dart';
 import 'tracking_controller.dart';
 import 'sort_tracker.dart';
 import 'sort_config.dart';
@@ -44,6 +46,36 @@ final trackingStatsProvider = Provider<TrackingStats>((ref) {
     processedFrames: state.processedFrames,
     lastProcessingTime: state.lastProcessingTime,
   );
+});
+
+/// Provider dla najwyższego poziomu ryzyka
+final highestRiskLevelProvider = Provider<RiskLevel>((ref) {
+  final state = ref.watch(trackingControllerProvider);
+  return state.highestRiskLevel;
+});
+
+/// Provider dla tracków z krytycznym ryzykiem
+final criticalRiskTracksProvider = Provider<List<TrackedObject>>((ref) {
+  final controller = ref.watch(trackingControllerProvider.notifier);
+  return controller.criticalRiskTracks;
+});
+
+/// Provider dla tracka z najwyższym ryzykiem
+final highestRiskTrackProvider = Provider<TrackedObject?>((ref) {
+  final controller = ref.watch(trackingControllerProvider.notifier);
+  return controller.highestRiskTrack;
+});
+
+/// Provider dla mapy TTC
+final ttcMapProvider = Provider<Map<int, double?>>((ref) {
+  final state = ref.watch(trackingControllerProvider);
+  return state.ttcMap;
+});
+
+/// Provider dla mapy ryzyka
+final riskMapProvider = Provider<Map<int, RiskAssessment>>((ref) {
+  final state = ref.watch(trackingControllerProvider);
+  return state.riskMap;
 });
 
 /// Statystyki trackera

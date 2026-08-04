@@ -172,8 +172,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
 
       final detections = await _visionEngine.detect(image);
       if (mounted) {
-        // Przekaż detekcje do trackera
+        // Aktualizuj prędkość własnego pojazdu z GPS
         final trackingController = ref.read(trackingControllerProvider.notifier);
+        final gpsPosition = ref.read(gpsPositionProvider).valueOrNull;
+        trackingController.updateEgoSpeed(gpsPosition);
+        
+        // Przekaż detekcje do trackera
         trackingController.processDetections(
           detections: detections,
           sourceImageSize: _sourceImageSize,
@@ -197,6 +201,42 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
   }
 
   void _checkForAlerts(List<Detection> detections) {
+    // Sprawdź ryzyko z trackera
+    final trackingState = ref.read(trackingControllerProvider);
+    
+    // Sprawdź czy jest krytyczne ryzyko
+    if (trackingState.highestRiskLevel == RiskLevel.critical ||
+        trackingState.highestRiskLevel == RiskLevel.high) {
+      
+      final highestRiskTrack = ref.read(trackingControllerProvider.notifier).highestRiskTrack;
+      final riskAssessment = highestRiskTrack != null 
+          ? trackingState.riskMap[highestRiskTrack.id] 
+          : null;
+      
+      if (riskAssessment != null && !_showAlert) {
+        setState(() {
+          _showAlert = true;
+          _alertMessage = riskAssessment.description;
+        });
+
+        // Odtwórz alert dźwiękowy i wibrację
+        _alertManager.playAlert(
+          soundAsset: 'sounds/alert_critical.wav',
+          vibrate: riskAssessment.level == RiskLevel.critical,
+        );
+
+        Future.delayed(const Duration(seconds: 3), () {
+          if (mounted) {
+            setState(() {
+              _showAlert = false;
+            });
+          }
+        });
+      }
+      return;
+    }
+    
+    // Fallback - sprawdź detekcje bez trackingu
     for (final detection in detections) {
       if (!_shouldNotify(detection)) continue;
       
@@ -420,6 +460,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                   showTentative: _debugMode,
                   showLost: _debugMode,
                   showTrajectory: _debugMode,
+                  ttcMap: trackingState.ttcMap,
+                  riskMap: trackingState.riskMap,
                 ),
                 
                 DetectionOverlay(

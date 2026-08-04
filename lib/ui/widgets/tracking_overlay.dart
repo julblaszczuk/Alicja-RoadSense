@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../ai/models.dart';
+import '../../ai/risk_scorer.dart';
 import '../../ai/tracking/tracked_object.dart';
 import '../../ai/tracking/track_state.dart';
 
@@ -25,6 +27,12 @@ class TrackingOverlay extends StatelessWidget {
   /// Czy wyświetlać trajektorie
   final bool showTrajectory;
 
+  /// Mapa TTC dla tracków (trackId -> ttc w sekundach)
+  final Map<int, double?> ttcMap;
+
+  /// Mapa ryzyka dla tracków (trackId -> RiskAssessment)
+  final Map<int, RiskAssessment> riskMap;
+
   const TrackingOverlay({
     super.key,
     required this.objects,
@@ -34,6 +42,8 @@ class TrackingOverlay extends StatelessWidget {
     this.showTentative = false,
     this.showLost = false,
     this.showTrajectory = false,
+    this.ttcMap = const {},
+    this.riskMap = const {},
   });
 
   @override
@@ -52,6 +62,8 @@ class TrackingOverlay extends StatelessWidget {
         showTentative: showTentative,
         showLost: showLost,
         showTrajectory: showTrajectory,
+        ttcMap: ttcMap,
+        riskMap: riskMap,
       ),
     );
   }
@@ -65,6 +77,8 @@ class _TrackingPainter extends CustomPainter {
   final bool showTentative;
   final bool showLost;
   final bool showTrajectory;
+  final Map<int, double?> ttcMap;
+  final Map<int, RiskAssessment> riskMap;
 
   _TrackingPainter({
     required this.objects,
@@ -74,6 +88,8 @@ class _TrackingPainter extends CustomPainter {
     required this.showTentative,
     required this.showLost,
     required this.showTrajectory,
+    required this.ttcMap,
+    required this.riskMap,
   });
 
   @override
@@ -233,6 +249,18 @@ class _TrackingPainter extends CustomPainter {
       if (obj.imageVelocity.magnitude > 0) {
         debugInfo.add(
             'vel: ${obj.imageVelocity.magnitude.toStringAsFixed(0)} px/s');
+      }
+
+      // Dodaj TTC jeśli dostępne
+      final ttc = ttcMap[obj.id];
+      if (ttc != null) {
+        debugInfo.add('TTC: ${ttc.toStringAsFixed(1)}s');
+      }
+
+      // Dodaj risk jeśli dostępne
+      final risk = riskMap[obj.id];
+      if (risk != null) {
+        debugInfo.add('risk: ${risk.score.toStringAsFixed(0)}');
       }
 
       final debugText = debugInfo.join(' | ');

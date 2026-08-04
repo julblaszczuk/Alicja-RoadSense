@@ -2,11 +2,14 @@ import 'dart:ui';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models.dart';
+import '../ttc_engine.dart';
+import '../risk_scorer.dart';
+import '../../core/gps_provider.dart';
 import 'sort_tracker.dart';
 import 'tracked_object.dart';
 import 'track_state.dart';
 
-/// Stan trackera
+/// Stan trackera z TTC i Risk Assessment
 class TrackingState {
   /// Lista śledzonych obiektów
   final List<TrackedObject> objects;
@@ -22,6 +25,15 @@ class TrackingState {
   
   /// ID sesji (do odrzucania starych wyników)
   final int sessionId;
+  
+  /// TTC dla każdego tracku (trackId -> ttc w sekundach)
+  final Map<int, double?> ttcMap;
+  
+  /// Risk assessment dla każdego tracku (trackId -> RiskAssessment)
+  final Map<int, RiskAssessment> riskMap;
+  
+  /// Najwyższy poziom ryzyka spośród wszystkich tracków
+  final RiskLevel highestRiskLevel;
 
   const TrackingState({
     this.objects = const [],
@@ -29,6 +41,9 @@ class TrackingState {
     this.lastProcessingTime = Duration.zero,
     this.error,
     this.sessionId = 0,
+    this.ttcMap = const {},
+    this.riskMap = const {},
+    this.highestRiskLevel = RiskLevel.low,
   });
 
   TrackingState copyWith({
@@ -37,6 +52,9 @@ class TrackingState {
     Duration? lastProcessingTime,
     String? error,
     int? sessionId,
+    Map<int, double?>? ttcMap,
+    Map<int, RiskAssessment>? riskMap,
+    RiskLevel? highestRiskLevel,
   }) {
     return TrackingState(
       objects: objects ?? this.objects,
@@ -44,6 +62,9 @@ class TrackingState {
       lastProcessingTime: lastProcessingTime ?? this.lastProcessingTime,
       error: error,
       sessionId: sessionId ?? this.sessionId,
+      ttcMap: ttcMap ?? this.ttcMap,
+      riskMap: riskMap ?? this.riskMap,
+      highestRiskLevel: highestRiskLevel ?? this.highestRiskLevel,
     );
   }
 }
@@ -55,11 +76,27 @@ class TrackingController extends StateNotifier<TrackingState> {
   int _sessionId = 0;
   bool _isProcessing = false;
   int _lastProcessedTimestampUs = 0;
+  
+  /// Silnik TTC
+  final TtcEngine _ttcEngine;
+  
+  /// Oceniacz ryzyka
+  final RiskScorer _riskScorer;
 
-  TrackingController({SortTracker? tracker})
-      : _tracker = tracker ?? SortTracker(),
+  TrackingController({
+    SortTracker? tracker,
+    TtcEngine? ttcEngine,
+    RiskScorer? riskScorer,
+  })  : _tracker = tracker ?? SortTracker(),
+        _ttcEngine = ttcEngine ?? TtcEngine(),
+        _riskScorer = riskScorer ?? RiskScorer(),
         super(const TrackingState()) {
     _sessionClock.start();
+  }
+
+  /// Aktualizuje prędkość własnego pojazdu z GPS
+  void updateEgoSpeed(GpsPosition? gpsPosition) {
+    _ttcEngine.updateEgoSpeed(gpsPosition);
   }
 
   /// Przetwarza detekcje z YOLO
@@ -91,6 +128,23 @@ class TrackingController extends StateNotifier<TrackingState> {
         timestampUs: currentTimestampUs,
       );
 
+      // Oblicz TTC dla wszystkich tracków
+      final ttcMap = _ttcEngine.calculateAllTtcs(trackedObjects);
+
+      // Oblicz ryzyko dla wszystkich tracków
+      final riskMap = _riskScorer.assessAllRisks(
+        trackedObjects,
+        ttcMap: ttcMap,
+      );
+
+      // Znajdź najwyższy poziom ryzyka
+      RiskLevel highestRisk = RiskLevel.low;
+      for (final risk in riskMap.values) {
+        if (_riskLevelToInt(risk.level) > _riskLevelToInt(highestRisk)) {
+          highestRisk = risk.level;
+        }
+      }
+
       final processingTime = DateTime.now().difference(startTime);
 
       _lastProcessedTimestampUs = currentTimestampUs;
@@ -100,6 +154,9 @@ class TrackingController extends StateNotifier<TrackingState> {
         processedFrames: state.processedFrames + 1,
         lastProcessingTime: processingTime,
         error: null,
+        ttcMap: ttcMap,
+        riskMap: riskMap,
+        highestRiskLevel: highestRisk,
       );
     } catch (e) {
       state = state.copyWith(
@@ -107,6 +164,20 @@ class TrackingController extends StateNotifier<TrackingState> {
       );
     } finally {
       _isProcessing = false;
+    }
+  }
+
+  /// Konwertuje RiskLevel na int dla porównania
+  int _riskLevelToInt(RiskLevel level) {
+    switch (level) {
+      case RiskLevel.low:
+        return 0;
+      case RiskLevel.medium:
+        return 1;
+      case RiskLevel.high:
+        return 2;
+      case RiskLevel.critical:
+        return 3;
     }
   }
 
@@ -154,5 +225,54 @@ class TrackingController extends StateNotifier<TrackingState> {
   Duration get averageProcessingTime {
     if (state.processedFrames == 0) return Duration.zero;
     return state.lastProcessingTime;
+  }
+
+  /// Zwraca TTC dla tracku
+  double? getTtc(int trackId) {
+    return state.ttcMap[trackId];
+  }
+
+  /// Zwraca Risk Assessment dla tracku
+  RiskAssessment? getRiskAssessment(int trackId) {
+    return state.riskMap[trackId];
+  }
+
+  /// Zwraca tracki z krytycznym ryzykiem
+  List<TrackedObject> get criticalRiskTracks {
+    return state.objects.where((t) {
+      final risk = state.riskMap[t.id];
+      return risk != null && risk.level == RiskLevel.critical;
+    }).toList();
+  }
+
+  /// Zwraca tracki z wysokim ryzykiem
+  List<TrackedObject> get highRiskTracks {
+    return state.objects.where((t) {
+      final risk = state.riskMap[t.id];
+      return risk != null && 
+          (risk.level == RiskLevel.critical || risk.level == RiskLevel.high);
+    }).toList();
+  }
+
+  /// Zwraca track z najwyższym ryzykiem
+  TrackedObject? get highestRiskTrack {
+    if (state.riskMap.isEmpty) return null;
+    
+    int? highestRiskId;
+    double highestScore = -1;
+    
+    for (final entry in state.riskMap.entries) {
+      if (entry.value.score > highestScore) {
+        highestScore = entry.value.score;
+        highestRiskId = entry.key;
+      }
+    }
+    
+    if (highestRiskId == null) return null;
+    
+    return state.objects.firstWhere(
+      (t) => t.id == highestRiskId,
+      orElse: () => state.objects.first,
+    );
   }
 }
