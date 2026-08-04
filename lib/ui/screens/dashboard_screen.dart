@@ -15,6 +15,7 @@ import '../widgets/risk_indicator.dart';
 import '../widgets/speed_display.dart';
 import '../widgets/alert_banner.dart';
 import '../widgets/calibration_overlay.dart';
+import '../widgets/mini_map_widget.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
@@ -401,6 +402,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                   ),
                   const SizedBox(width: AppSpacing.md),
                   const SpeedDisplay(),
+                  const SizedBox(width: AppSpacing.md),
+                  const MiniMapWidget(),
                 ],
               ),
             ),
@@ -1086,7 +1089,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
               icon: Icons.map_outlined,
               label: 'Nawigacja',
               onTap: () {
-                _showNavigationPanel();
+                Navigator.pushNamed(context, '/navigation');
               },
             ),
           ),

@@ -7,6 +7,7 @@ import 'ui/screens/dashboard_screen.dart';
 import 'ui/screens/splash_screen.dart';
 import 'ui/screens/settings_screen.dart';
 import 'ui/screens/trip_history_screen.dart';
+import 'ui/screens/navigation_screen.dart';
 
 List<CameraDescription> cameras = [];
 
@@ -44,6 +45,7 @@ class AlicjaRoadSenseApp extends StatelessWidget {
         '/dashboard': (context) => const DashboardScreen(),
         '/settings': (context) => const SettingsScreen(),
         '/history': (context) => const TripHistoryScreen(),
+        '/navigation': (context) => const NavigationScreen(),
       },
     );
   }

@@ -10,6 +10,8 @@ AI-powered driving assistant with real-time collision detection, vehicle proximi
 - **AI Prediction** - Predict dangerous events before they happen using LSTM/Transformer models
 - **Route Analysis** - Analyze route risk and road conditions
 - **Navigation** - Turn-by-turn navigation with real-time warnings
+- **Settings** - Customizable detection sensitivity and alert preferences
+- **Trip History** - View past trips and incident statistics
 
 ## Architecture
 
@@ -17,19 +19,19 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed system architecture.
 
 ### Core Components
 
-- **Sensor Layer** - Camera, GPS, IMU, Microphone
-- **AI/ML Pipeline** - MobileNet/EfficientDet + Prediction Engine
+- **Sensor Layer** - Camera, GPS, IMU
+- **AI/ML Pipeline** - YOLOv8n BDD100K (TFLite INT8)
 - **Alert System** - Visual, audio, and haptic warnings
-- **Navigation Engine** - Mapbox integration with offline maps
+- **Navigation Engine** - Mapbox integration with offline maps (planned)
 - **Data Layer** - SQLite for local storage
 
 ## Tech Stack
 
-- **Framework**: Flutter (Dart)
-- **AI Models**: TensorFlow Lite (MobileNet SSD, EfficientDet-Lite)
-- **Maps**: Mapbox
-- **Database**: SQLite
+- **Framework**: Flutter 3.44+ (Dart)
+- **AI Models**: TensorFlow Lite (YOLOv8n BDD100K)
 - **State Management**: Riverpod
+- **Maps**: Mapbox (planned), OpenStreetMap data
+- **Database**: SQLite
 
 ## Setup
 
@@ -43,7 +45,8 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed system architecture.
 
 ```bash
 # Clone repository
-cd roadsense
+git clone https://github.com/julblaszczuk/Alicja-RoadSense.git
+cd Alicja-RoadSense
 
 # Install dependencies
 flutter pub get
@@ -57,46 +60,54 @@ flutter run
 The app requires:
 - Camera (required)
 - Location (required)
-- Microphone (optional, for audio detection)
 - Storage (for saving clips)
 - Notifications (for alerts)
 
 ## Project Structure
 
 ```
-roadsense/
+Alicja-RoadSense/
 ├── lib/
-│   ├── core/              # Event bus, state management, config
-│   ├── sensors/           # Camera, GPS, IMU managers
-│   ├── ai/                # Vision engine, prediction, risk scoring
-│   ├── alerts/            # Alert system (visual/audio/haptic)
-│   ├── navigation/        # Maps, routing, turn-by-turn
-│   ├── data/              # SQLite, event store, models
-│   └── ui/                # Screens, widgets, HUD
-├── models/                # TFLite models (MobileNet, EfficientDet)
-├── assets/                # Images, sounds, fonts
+│   ├── core/              # Settings provider, alert manager, theme
+│   ├── ai/                # Vision engine (YOLOv8), models, road systems
+│   ├── ui/
+│   │   ├── screens/       # Dashboard, Navigation, Settings, History, etc.
+│   │   └── widgets/       # Detection overlay, risk indicator, mini-map, etc.
+│   └── main.dart          # App entry point
+├── models/                # TFLite models (YOLOv8n BDD100K)
+├── assets/                # Logo, sounds, maps
+├── android/               # Android-specific configuration
 └── test/                  # Unit and widget tests
 ```
 
+## Screens
+
+- **Splash Screen** - Branded loading screen with logo
+- **Dashboard** - Main camera view with detection overlay, risk indicator, speed display, mini-map
+- **Navigation** - Mapbox navigation with saved places
+- **Settings** - Detection confidence, alert volume, toggle preferences
+- **Trip History** - Past trips with statistics
+- **Incident Details** - Detailed view of detected incidents
+
 ## Development Roadmap
 
-### Phase 1: Foundation (Weeks 1-4)
-- [ ] Setup Flutter project
-- [ ] Integrate camera API
-- [ ] Setup TFLite inference
-- [ ] Train/convert MobileNet SSD model
-- [ ] Basic object detection (vehicles)
-- [ ] Simple UI (camera feed + detections)
+### Phase 1: Foundation ✅
+- [x] Setup Flutter project
+- [x] Integrate camera API
+- [x] Setup TFLite inference
+- [x] Train YOLOv8n on BDD100K dataset
+- [x] Basic object detection (10 classes)
+- [x] UI (Dashboard, Settings, Navigation, History)
 
-### Phase 2: Core Features (Weeks 5-8)
+### Phase 2: Core Features
 - [ ] Multi-object tracking (SORT)
 - [ ] TTC calculation
 - [ ] GPS/IMU integration
 - [ ] Sensor fusion (Kalman filter)
-- [ ] Alert system (visual/audio)
+- [ ] Alert system (visual/audio/haptic)
 - [ ] Risk scoring algorithm
 
-### Phase 3: Advanced AI (Weeks 9-12)
+### Phase 3: Advanced AI
 - [ ] Pedestrian detection
 - [ ] Lane detection
 - [ ] Prediction model (LSTM)
@@ -104,7 +115,7 @@ roadsense/
 - [ ] Vehicle approach detection
 - [ ] Sudden braking detection
 
-### Phase 4: Navigation & UX (Weeks 13-16)
+### Phase 4: Navigation & UX
 - [ ] Mapbox integration
 - [ ] Turn-by-turn navigation
 - [ ] HUD overlay
@@ -112,7 +123,7 @@ roadsense/
 - [ ] Incident history
 - [ ] Settings panel
 
-### Phase 5: Polish & Testing (Weeks 17-20)
+### Phase 5: Polish & Testing
 - [ ] Performance optimization
 - [ ] Battery optimization
 - [ ] Edge case handling
@@ -120,7 +131,7 @@ roadsense/
 - [ ] User testing
 - [ ] Bug fixes
 
-### Phase 6: Release (Weeks 21-24)
+### Phase 6: Release
 - [ ] Beta testing
 - [ ] App store submission
 - [ ] Marketing materials

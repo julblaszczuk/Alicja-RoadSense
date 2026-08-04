@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:camera/camera.dart';
 import 'package:tflite_flutter/tflite_flutter.dart';
 import 'package:image/image.dart' as img;
@@ -13,7 +15,7 @@ class VisionEngine {
   bool _modelAvailable = false;
 
   static const int _inputSize = 300;
-  static const double _confidenceThreshold = 0.4; // Obniżony dla testów
+  static const double _confidenceThreshold = 0.35; // Threshold dla stabilnych detekcji
 
   static const Map<int, String> _labels = {
     0: '???',
@@ -113,12 +115,21 @@ class VisionEngine {
     if (_isInitialized) return;
 
     try {
+      _logger.i('Loading TFLite model...');
       _interpreter = await Interpreter.fromAsset('models/mobilenet_ssd.tflite');
       _isInitialized = true;
       _modelAvailable = true;
       _logger.i('TFLite model loaded successfully');
-    } catch (e) {
-      _logger.w('Failed to load TFLite model: $e');
+      
+      final inputTensor = _interpreter!.getInputTensor(0);
+      final outputTensors = _interpreter!.getOutputTensors();
+      _logger.i('Input shape: ${inputTensor.shape}');
+      _logger.i('Output count: ${outputTensors.length}');
+      for (int i = 0; i < outputTensors.length; i++) {
+        _logger.i('  Output $i: ${outputTensors[i].shape}');
+      }
+    } catch (e, st) {
+      _logger.w('Failed to load TFLite model: $e\n$st');
       _isInitialized = true;
       _modelAvailable = false;
     }
@@ -130,27 +141,23 @@ class VisionEngine {
     }
 
     if (!_modelAvailable || _interpreter == null) {
-      return _generateDemoDetections(cameraImage.width, cameraImage.height);
+      _logger.w('Model not available, returning empty');
+      return [];
     }
 
     try {
-      _logger.i('Camera format: ${cameraImage.format.group}');
-      _logger.i('Camera size: ${cameraImage.width}x${cameraImage.height}');
-      _logger.i('Planes count: ${cameraImage.planes.length}');
-      
       final input = _preprocess(cameraImage);
       final output = _runInference(input);
       final detections = _postprocess(output, cameraImage.width, cameraImage.height);
       
-      _logger.i('Total detections: ${detections.length}');
       return detections;
-    } catch (e) {
-      _logger.e('Detection error: $e');
-      return _generateDemoDetections(cameraImage.width, cameraImage.height);
+    } catch (e, st) {
+      _logger.e('Detection error: $e\n$st');
+      return [];
     }
   }
 
-  List<List<List<List<int>>>> _preprocess(CameraImage image) {
+  Uint8List _preprocess(CameraImage image) {
     final width = image.width;
     final height = image.height;
 
@@ -170,23 +177,17 @@ class VisionEngine {
       height: _inputSize,
     );
 
-    return List.generate(
-      1,
-      (_) => List.generate(
-        _inputSize,
-        (y) => List.generate(
-          _inputSize,
-          (x) {
-            final pixel = resized.getPixel(x, y);
-            return [
-              pixel.r.toInt().clamp(0, 255),
-              pixel.g.toInt().clamp(0, 255),
-              pixel.b.toInt().clamp(0, 255),
-            ];
-          },
-        ),
-      ),
-    );
+    final buffer = Uint8List(1 * _inputSize * _inputSize * 3);
+    int offset = 0;
+    for (int y = 0; y < _inputSize; y++) {
+      for (int x = 0; x < _inputSize; x++) {
+        final pixel = resized.getPixel(x, y);
+        buffer[offset++] = pixel.r.toInt().clamp(0, 255);
+        buffer[offset++] = pixel.g.toInt().clamp(0, 255);
+        buffer[offset++] = pixel.b.toInt().clamp(0, 255);
+      }
+    }
+    return buffer;
   }
 
   void _convertYuv420ToImage(CameraImage image, img.Image rgbImage) {
@@ -206,10 +207,14 @@ class VisionEngine {
     final uvRowStride = uPlane.bytesPerRow;
     final uvPixelStride = uPlane.bytesPerPixel ?? 1;
 
-    for (int y = 0; y < height; y++) {
-      for (int x = 0; x < width; x++) {
+    _logger.i('YUV420: ${width}x${height}, yRowStride=$yRowStride, uvRowStride=$uvRowStride, uvPixelStride=$uvPixelStride');
+
+    for (int y = 0; y < height && y < rgbImage.height; y++) {
+      for (int x = 0; x < width && x < rgbImage.width; x++) {
         final yIndex = y * yRowStride + x * yPixelStride;
-        final uvIndex = (y ~/ 2) * uvRowStride + (x ~/ 2) * uvPixelStride;
+        final uvY = y ~/ 2;
+        final uvX = x ~/ 2;
+        final uvIndex = uvY * uvRowStride + uvX * uvPixelStride;
 
         if (yIndex >= yBytes.length || uvIndex >= uBytes.length || uvIndex >= vBytes.length) {
           continue;
@@ -219,9 +224,9 @@ class VisionEngine {
         final uVal = uBytes[uvIndex] & 0xFF;
         final vVal = vBytes[uvIndex] & 0xFF;
 
-        int r = (yVal + 1.370705 * (vVal - 128)).round().clamp(0, 255);
-        int g = (yVal - 0.337633 * (uVal - 128) - 0.698001 * (vVal - 128)).round().clamp(0, 255);
-        int b = (yVal + 1.732446 * (uVal - 128)).round().clamp(0, 255);
+        int r = (yVal + 1.402 * (vVal - 128)).round().clamp(0, 255);
+        int g = (yVal - 0.344136 * (uVal - 128) - 0.714136 * (vVal - 128)).round().clamp(0, 255);
+        int b = (yVal + 1.772 * (uVal - 128)).round().clamp(0, 255);
 
         rgbImage.setPixelRgb(x, y, r, g, b);
       }
@@ -258,100 +263,112 @@ class VisionEngine {
     }
   }
 
-  Map<String, List<dynamic>> _runInference(List<List<List<List<int>>>> input) {
+  Map<String, dynamic> _runInference(Uint8List input) {
     final interpreter = _interpreter!;
     
-    // Sprawdź kształty output tensorów
-    final outputTensors = interpreter.getOutputTensors();
+    interpreter.allocateTensors();
     
+    final inputTensor = interpreter.getInputTensor(0);
+    _logger.i('Input tensor: shape=${inputTensor.shape}, type=${inputTensor.type}');
+    
+    final outputTensors = interpreter.getOutputTensors();
     _logger.i('Output tensors: ${outputTensors.length}');
     for (int i = 0; i < outputTensors.length; i++) {
-      _logger.i('  Tensor $i: ${outputTensors[i].shape}');
+      _logger.i('  Tensor $i: shape=${outputTensors[i].shape}, type=${outputTensors[i].type}');
     }
     
-    // MobileNet SSD ma 4 outputy:
-    // 0: DetectionBoxes [1][num_detections][4]
-    // 1: DetectionClasses [1][num_detections]
-    // 2: DetectionScores [1][num_detections]
-    // 3: NumDetections [1]
-    
-    final maxDetections = 20; // Zgodnie z kształtem tensora [1, 20, 4]
-    
-    final outputLocations = List.generate(1, (_) => List.generate(maxDetections, (_) => List.filled(4, 0.0)));
-    final outputClasses = List.generate(1, (_) => List.filled(maxDetections, 0.0));
-    final outputScores = List.generate(1, (_) => List.filled(maxDetections, 0.0));
-    final numDetections = List.filled(1, 0.0);
+    // Tensor 0: boxes [1, 10, 4]
+    final outputBoxes = List.generate(1, (_) => List.generate(10, (_) => List.filled(4, 0.0)));
+    // Tensor 1: classes [1, 10]
+    final outputClasses = List.generate(1, (_) => List.filled(10, 0.0));
+    // Tensor 2: scores [1, 10]
+    final outputScores = List.generate(1, (_) => List.filled(10, 0.0));
+    // Tensor 3: numDetections [1]
+    final outputNum = List.filled(1, 0.0);
 
-    interpreter.run(input, {
-      0: outputLocations,
+    interpreter.runForMultipleInputs([input], {
+      0: outputBoxes,
       1: outputClasses,
       2: outputScores,
-      3: numDetections,
+      3: outputNum,
     });
 
     return {
-      'boxes': outputLocations,
+      'boxes': outputBoxes,
       'classes': outputClasses,
       'scores': outputScores,
-      'num': numDetections,
+      'num': outputNum,
     };
   }
 
   List<Detection> _postprocess(
-    Map<String, List<dynamic>> output,
+    Map<String, dynamic> output,
     int imageWidth,
     int imageHeight,
   ) {
     final detections = <Detection>[];
     
     try {
-      final numDetectionsList = output['num'] as List;
-      if (numDetectionsList.isEmpty || numDetectionsList[0] == null) {
-        _logger.w('No detections found');
+      final numList = output['num'] as List?;
+      if (numList == null || numList.isEmpty) {
+        _logger.w('No numDetections in output');
         return detections;
       }
       
-      final numDetections = (numDetectionsList[0] as num).toInt();
-      _logger.i('Detekcje: $numDetections');
+      final numDetections = (numList[0] as num).toInt();
+      _logger.i('numDetections: $numDetections');
 
-      final boxes = output['boxes'] as List;
-      final classes = output['classes'] as List;
-      final scores = output['scores'] as List;
+      final boxes = output['boxes'] as List?;
+      final classes = output['classes'] as List?;
+      final scores = output['scores'] as List?;
 
-      if (boxes.isEmpty || classes.isEmpty || scores.isEmpty) {
-        _logger.w('Empty output arrays');
+      if (boxes == null || classes == null || scores == null) {
+        _logger.w('Null output tensors');
         return detections;
       }
 
-      // Loguj wszystkie detekcje (nawet te poniżej threshold)
-      for (int i = 0; i < numDetections; i++) {
+      // Loguj surowe wyniki (pierwsze 5)
+      final logCount = numDetections.clamp(0, 5);
+      for (int i = 0; i < logCount; i++) {
         try {
           final score = (scores[0][i] as num).toDouble();
           final classId = (classes[0][i] as num).toInt();
-          final label = _labels[classId] ?? 'unknown';
-          _logger.i('  [$i] $label: ${(score * 100).toStringAsFixed(1)}%');
+          final box = boxes[0][i] as List;
+          final top = (box[0] as num).toDouble();
+          final left = (box[1] as num).toDouble();
+          final bottom = (box[2] as num).toDouble();
+          final right = (box[3] as num).toDouble();
+          
+          _logger.i('[$i] score=${score.toStringAsFixed(3)} classId=$classId box=[${top.toStringAsFixed(3)}, ${left.toStringAsFixed(3)}, ${bottom.toStringAsFixed(3)}, ${right.toStringAsFixed(3)}]');
         } catch (e) {
-          _logger.w('Error logging detection $i: $e');
+          _logger.w('Error logging [$i]: $e');
         }
       }
 
-      for (int i = 0; i < numDetections; i++) {
+      // Przetwórz tylko prawdziwe detekcje
+      for (int i = 0; i < numDetections && i < 10; i++) {
         try {
           final score = (scores[0][i] as num).toDouble();
-          if (score < _confidenceThreshold) continue;
+          if (!score.isFinite || score < _confidenceThreshold) continue;
 
           final classId = (classes[0][i] as num).toInt();
           final label = _labels[classId] ?? 'unknown';
 
           final box = boxes[0][i] as List;
-          if (box.length < 4) continue;
+          final top = (box[0] as num).toDouble();
+          final left = (box[1] as num).toDouble();
+          final bottom = (box[2] as num).toDouble();
+          final right = (box[3] as num).toDouble();
           
-          final ymin = (box[0] as num).toDouble() * imageHeight;
-          final xmin = (box[1] as num).toDouble() * imageWidth;
-          final ymax = (box[2] as num).toDouble() * imageHeight;
-          final xmax = (box[3] as num).toDouble() * imageWidth;
+          if (!top.isFinite || !left.isFinite || !bottom.isFinite || !right.isFinite) continue;
+          if (right <= left || bottom <= top) continue;
+          
+          final ymin = top * imageHeight;
+          final xmin = left * imageWidth;
+          final ymax = bottom * imageHeight;
+          final xmax = right * imageWidth;
 
-          _logger.i('Wykryto: $label (${(score * 100).toStringAsFixed(1)}%)');
+          _logger.i('OK $label ${score.toStringAsFixed(2)} bbox=[$xmin,$ymin,$xmax,$ymax]');
 
           detections.add(
             Detection(
@@ -367,43 +384,16 @@ class VisionEngine {
             ),
           );
         } catch (e) {
-          _logger.w('Error processing detection $i: $e');
+          _logger.w('Error processing [$i]: $e');
         }
       }
-    } catch (e) {
-      _logger.e('Postprocess error: $e');
+      
+      _logger.i('Valid detections: ${detections.length}');
+    } catch (e, st) {
+      _logger.e('Postprocess error: $e\n$st');
     }
 
     return detections;
-  }
-
-  List<Detection> _generateDemoDetections(int width, int height) {
-    return [
-      Detection(
-        label: 'car',
-        confidence: 0.92,
-        bbox: BoundingBox(
-          left: width * 0.1,
-          top: height * 0.3,
-          width: width * 0.3,
-          height: height * 0.4,
-        ),
-        ttc: 5.2,
-        trackId: 1,
-      ),
-      Detection(
-        label: 'person',
-        confidence: 0.87,
-        bbox: BoundingBox(
-          left: width * 0.6,
-          top: height * 0.2,
-          width: width * 0.1,
-          height: height * 0.5,
-        ),
-        ttc: 8.1,
-        trackId: 2,
-      ),
-    ];
   }
 
   void dispose() {

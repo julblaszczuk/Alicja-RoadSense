@@ -16,9 +16,11 @@
 ### Platform
 
 - **Target**: Mobile (Android/iOS)
-- **Framework**: React Native / Flutter (TBD)
-- **AI Models**: MobileNet/EfficientDet (on-device inference)
-- **Sensors**: Camera, GPS, Accelerometer, Gyroscope, Microphone
+- **Framework**: Flutter 3.44+ (Dart)
+- **AI Models**: YOLOv8n BDD100K (on-device TFLite inference)
+- **State Management**: Riverpod
+- **Sensors**: Camera, GPS, Accelerometer, Gyroscope
+- **Maps**: Mapbox (planned), OpenStreetMap data
 
 ---
 
@@ -30,19 +32,23 @@
 └─────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────┐
-│  UI Layer (React Native / Flutter)                          │
+│  UI Layer (Flutter)                                         │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
-│  │  Dashboard   │  │  HUD View    │  │  Settings    │      │
-│  │  (Main)      │  │  (Overlay)   │  │  Panel       │      │
+│  │  Dashboard   │  │  Navigation  │  │  Settings    │      │
+│  │  (Camera +   │  │  (Mapbox)    │  │  Panel       │      │
+│  │   HUD)       │  │              │  │              │      │
+│  └──────────────┘  └──────────────┘  └──────────────┘      │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
+│  │  Trip        │  │  Incident    │  │  Splash      │      │
+│  │  History     │  │  Details     │  │  Screen      │      │
 │  └──────────────┘  └──────────────┘  └──────────────┘      │
 └─────────────────────────────────────────────────────────────┘
                             ↓
 ┌─────────────────────────────────────────────────────────────┐
 │  Application Core                                           │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
-│  │  Event Bus   │  │  State Mgr   │  │  Config      │      │
-│  │  (Async)     │  │  (Redux/     │  │  Manager     │      │
-│  │              │  │   Zustand)   │  │              │      │
+│  │  Event Bus   │  │  Riverpod    │  │  Settings    │      │
+│  │  (Async)     │  │  State Mgr   │  │  Provider    │      │
 │  └──────────────┘  └──────────────┘  └──────────────┘      │
 └─────────────────────────────────────────────────────────────┘
                             ↓
@@ -51,8 +57,8 @@
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
 │  │  Vision      │  │  Prediction  │  │  Risk        │      │
 │  │  Engine      │  │  Engine      │  │  Scorer      │      │
-│  │  (MobileNet/ │  │  (LSTM/      │  │  (Real-time  │      │
-│  │   EfficientD)│  │   Transformer)│  │   scoring)   │      │
+│  │  (YOLOv8n    │  │  (LSTM/      │  │  (Real-time  │      │
+│  │   BDD100K)   │  │   Transform) │  │   scoring)   │      │
 │  └──────────────┘  └──────────────┘  └──────────────┘      │
 └─────────────────────────────────────────────────────────────┘
                             ↓
@@ -118,9 +124,10 @@
 
 #### Vision Engine
 **Models**:
-- **Primary**: MobileNet SSD / EfficientDet-Lite (vehicle detection)
-- **Secondary**: Pose estimation (pedestrian detection)
-- **Tertiary**: Lane detection model
+- **Primary**: YOLOv8n fine-tuned on BDD100K (10 classes: person, rider, car, truck, bus, train, motorcycle, bicycle, traffic light, traffic sign)
+- **Format**: TFLite INT8 quantized (~6-8 MB)
+- **Input**: 640x640 RGB images from camera
+- **Output**: Bounding boxes with class labels and confidence scores
 
 **Pipeline**:
 ```

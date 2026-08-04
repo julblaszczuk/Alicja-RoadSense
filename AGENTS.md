@@ -19,31 +19,35 @@ Build a safety-critical mobile application that:
 lib/
 ├── main.dart              # App entry point
 ├── core/                  # Core infrastructure
-│   ├── event_bus.dart     # Async event system
-│   └── config.dart        # App configuration
-├── sensors/               # Hardware sensors (TODO)
-│   ├── camera_manager.dart
-│   ├── gps_manager.dart
-│   └── imu_manager.dart
+│   ├── settings_provider.dart  # App settings (Riverpod)
+│   ├── alert_manager.dart      # Audio/haptic alerts
+│   └── theme/                  # App theme and design system
 ├── ai/                    # AI/ML pipeline
-│   ├── vision_engine.dart # TFLite inference
-│   ├── models.dart        # Detection data models
-│   ├── tracker.dart       # Multi-object tracking (TODO)
-│   └── predictor.dart     # Collision prediction (TODO)
-├── alerts/                # Alert system (TODO)
-│   ├── alert_manager.dart
-│   ├── audio_alert.dart
-│   └── haptic_alert.dart
-├── navigation/            # Maps & routing (TODO)
-│   ├── map_provider.dart
-│   └── route_analyzer.dart
-├── data/                  # Local storage (TODO)
-│   ├── database.dart
-│   ├── trip_repository.dart
-│   └── incident_repository.dart
-└── ui/                    # User interface
-    ├── screens/
-    └── widgets/
+│   ├── vision_engine_yolov8.dart  # YOLOv8n BDD100K inference
+│   ├── vision_engine.dart         # Legacy MobileNet SSD
+│   ├── models.dart                # Detection data models
+│   ├── road_calibration.dart      # Road calibration
+│   └── road_map_system.dart       # Road map system
+├── ui/                    # User interface
+│   ├── screens/
+│   │   ├── splash_screen.dart
+│   │   ├── dashboard_screen.dart
+│   │   ├── navigation_screen.dart
+│   │   ├── settings_screen.dart
+│   │   ├── trip_history_screen.dart
+│   │   └── incident_details_screen.dart
+│   └── widgets/
+│       ├── detection_overlay.dart
+│       ├── risk_indicator.dart
+│       ├── speed_display.dart
+│       ├── alert_banner.dart
+│       ├── mini_map_widget.dart
+│       ├── calibration_overlay.dart
+│       └── glassmorphism_card.dart
+└── sensors/               # Hardware sensors (TODO)
+    ├── camera_manager.dart
+    ├── gps_manager.dart
+    └── imu_manager.dart
 ```
 
 ## Tech Stack
@@ -247,21 +251,22 @@ See `ARCHITECTURE.md` for detailed roadmap.
 - [ ] Multi-object tracking (SORT algorithm)
 - [ ] TTC calculation based on object size/velocity
 - [ ] IMU integration for sudden braking detection
-- [ ] Alert system (audio + haptic)
+- [ ] GPS integration for speed/position tracking
 - [ ] Mapbox navigation integration
 
 ### Medium Priority
 
-- [ ] Trip recording and history
 - [ ] SQLite database for incidents
-- [ ] Settings panel
-- [ ] Performance optimization
+- [ ] Trip recording and persistence
+- [ ] Performance optimization (battery, FPS)
+- [ ] Lane detection model
 
 ### Low Priority
 
 - [ ] Cloud sync (optional)
 - [ ] Emergency services integration
 - [ ] Voice commands
+- [ ] Microphone audio detection (sirens, horns)
 
 ## Resources
 
