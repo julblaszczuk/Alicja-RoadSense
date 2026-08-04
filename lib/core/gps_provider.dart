@@ -52,7 +52,7 @@ class GpsPosition {
 class GpsManager {
   Stream<Position>? _positionStream;
   GpsPosition? _lastPosition;
-  GpsPosition? _ currentPosition;
+  GpsPosition? _currentPosition;
 
   GpsPosition? get currentPosition => _currentPosition;
   GpsPosition? get lastPosition => _lastPosition;

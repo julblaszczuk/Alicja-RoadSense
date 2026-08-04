@@ -7,6 +7,8 @@ import '../../ai/vision_engine_yolov8.dart';
 import '../../ai/models.dart';
 import '../../ai/road_calibration.dart';
 import '../../ai/road_map_system.dart';
+import '../../ai/tracking/tracking_controller.dart';
+import '../../ai/tracking/tracking_provider.dart';
 import '../../core/theme/design_system.dart';
 import '../../core/settings_provider.dart';
 import '../../core/alert_manager.dart';
@@ -17,6 +19,7 @@ import '../widgets/speed_display.dart';
 import '../widgets/alert_banner.dart';
 import '../widgets/calibration_overlay.dart';
 import '../widgets/mini_map_widget.dart';
+import '../widgets/tracking_overlay.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
@@ -61,6 +64,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
   bool _notifyTrafficLight = true;
   bool _notifyAnimal = true;
   bool _notifySpeed = true;
+  
+  // Debug mode
+  bool _debugMode = false;
+  
+  // Rozmiar obrazu źródłowego z kamery
+  Size _sourceImageSize = const Size(640, 480);
 
   @override
   void initState() {
@@ -125,6 +134,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
   Future<void> _switchCamera() async {
     if (cameras.length < 2) return;
 
+    // Reset trackera przy przełączeniu kamery
+    final trackingController = ref.read(trackingControllerProvider.notifier);
+    trackingController.reset();
+
     await _cameraController?.dispose();
     
     _currentCameraIndex = (_currentCameraIndex + 1) % cameras.length;
@@ -154,8 +167,18 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     _isProcessing = true;
 
     try {
+      // Zapisz rozmiar obrazu źródłowego
+      _sourceImageSize = Size(image.width.toDouble(), image.height.toDouble());
+
       final detections = await _visionEngine.detect(image);
       if (mounted) {
+        // Przekaż detekcje do trackera
+        final trackingController = ref.read(trackingControllerProvider.notifier);
+        trackingController.processDetections(
+          detections: detections,
+          sourceImageSize: _sourceImageSize,
+        );
+
         setState(() {
           _detections = detections; // Zastąp wyniki, nie dodawaj
           _checkForAlerts(detections);
@@ -333,6 +356,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     _visionEngine.dispose();
     _alertManager.dispose();
     ref.read(gpsManagerProvider).stopLocationUpdates();
+    ref.read(trackingControllerProvider.notifier).dispose();
     super.dispose();
   }
 
@@ -378,14 +402,31 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
       extendBody: true,
       body: GestureDetector(
         onTapDown: _onTap,
-        child: Stack(
-          children: [
-            CameraPreview(_cameraController!),
-            DetectionOverlay(
-              detections: _detections,
-              selectedDetection: _selectedDetection,
-              imageSize: const Size(300, 300),
-            ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final previewSize = Size(constraints.maxWidth, constraints.maxHeight);
+            final trackingState = ref.watch(trackingControllerProvider);
+            
+            return Stack(
+              children: [
+                CameraPreview(_cameraController!),
+                
+                // Tracking overlay - wyświetla śledzone obiekty
+                TrackingOverlay(
+                  objects: trackingState.objects,
+                  previewSize: previewSize,
+                  sourceImageSize: _sourceImageSize,
+                  debugMode: _debugMode,
+                  showTentative: _debugMode,
+                  showLost: _debugMode,
+                  showTrajectory: _debugMode,
+                ),
+                
+                DetectionOverlay(
+                  detections: _detections,
+                  selectedDetection: _selectedDetection,
+                  imageSize: const Size(300, 300),
+                ),
             
             // Calibration overlay
             if (_isCalibrating)
@@ -460,6 +501,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                   _buildMapButton(),
                   const SizedBox(height: AppSpacing.md),
                   _buildNotificationButton(),
+                  const SizedBox(height: AppSpacing.md),
+                  _buildDebugButton(),
                 ],
               ),
             ),
@@ -496,9 +539,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
               child: _buildDetectionCount(),
             ),
           ],
-        ),
-      ),
-    );
+        );
+      },
+    ),
+  ),
+);
   }
 
   Widget _buildSelectedDetectionCard() {
@@ -920,6 +965,33 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
         child: Icon(
           _showNotifications ? Icons.expand_less : Icons.notifications_outlined,
           color: _showNotifications ? Colors.white : AppColors.primary,
+          size: 24,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDebugButton() {
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _debugMode = !_debugMode;
+        });
+      },
+      child: Container(
+        width: 48,
+        height: 48,
+        decoration: BoxDecoration(
+          color: _debugMode ? AppColors.warning : AppColors.surface.withOpacity(0.9),
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: _debugMode ? AppColors.warning : AppColors.border,
+            width: 2,
+          ),
+        ),
+        child: Icon(
+          Icons.bug_report,
+          color: _debugMode ? Colors.white : AppColors.textSecondary,
           size: 24,
         ),
       ),

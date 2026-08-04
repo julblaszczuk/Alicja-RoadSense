@@ -122,8 +122,8 @@ class IncidentDetailsScreen extends ConsumerWidget {
           const SizedBox(height: AppSpacing.md),
           _buildInfoRow(
             icon: Icons.speed,
-            label: 'Prędkość względna',
-            value: '${detection.relativeSpeed?.toStringAsFixed(1) ?? '?'} km/h',
+            label: 'Prędkość',
+            value: '${detection.velocity?.toStringAsFixed(1) ?? '?'} m/s',
             color: AppColors.secondary,
           ),
           const SizedBox(height: AppSpacing.md),
