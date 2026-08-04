@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:geolocator/geolocator.dart';
 
 import '../../main.dart';
@@ -24,51 +25,41 @@ class _SplashScreenState extends State<SplashScreen> {
     try {
       setState(() => _status = 'Checking permissions...');
       await _checkPermissions();
-
-      setState(() => _status = 'Loading AI models...');
-      await Future.delayed(const Duration(seconds: 1));
-
-      setState(() => _status = 'Starting camera...');
-      await Future.delayed(const Duration(milliseconds: 500));
-
-      if (mounted) {
-        Navigator.pushReplacementNamed(context, '/dashboard');
-      }
     } catch (e) {
-      setState(() {
-        _status = 'Error: $e';
-        _hasError = true;
-      });
+      debugPrint('Splash permission warning: $e');
+    }
+
+    setState(() => _status = 'Loading AI models...');
+    await Future.delayed(const Duration(seconds: 1));
+
+    setState(() => _status = 'Starting camera...');
+    await Future.delayed(const Duration(milliseconds: 500));
+
+    if (mounted) {
+      Navigator.pushReplacementNamed(context, '/dashboard');
     }
   }
 
   Future<void> _checkPermissions() async {
-    // Sprawdź uprawnienia lokalizacji
+    debugPrint('Splash: checking permissions...');
+    
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    debugPrint('Splash: location services enabled = $serviceEnabled');
+    
     if (!serviceEnabled) {
-      throw 'Location services are disabled.';
+      debugPrint('Splash: location services disabled, skipping');
+      return;
     }
 
     LocationPermission permission = await Geolocator.checkPermission();
+    debugPrint('Splash: location permission = $permission');
+    
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) {
-        throw 'Location permissions are denied.';
-      }
+      debugPrint('Splash: after request permission = $permission');
     }
 
-    if (permission == LocationPermission.deniedForever) {
-      throw 'Location permissions are permanently denied.';
-    }
-
-    // Sprawdź dostępność kamer
-    try {
-      if (cameras.isEmpty) {
-        throw 'No cameras available.';
-      }
-    } catch (e) {
-      throw 'Camera initialization failed: $e';
-    }
+    debugPrint('Splash: cameras count = ${cameras.length}');
   }
 
   @override
@@ -79,10 +70,13 @@ class _SplashScreenState extends State<SplashScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.shield_outlined,
-              size: 120,
-              color: _hasError ? Colors.red : const Color(0xFF1E88E5),
+            SvgPicture.asset(
+              'assets/logo.svg',
+              width: 150,
+              height: 150,
+              colorFilter: _hasError 
+                  ? const ColorFilter.mode(Colors.red, BlendMode.srcIn)
+                  : const ColorFilter.mode(Color(0xFF1E88E5), BlendMode.srcIn),
             ),
             const SizedBox(height: 32),
             const Text(

@@ -1,13 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/design_system.dart';
+import '../../core/settings_provider.dart';
 import '../widgets/glassmorphism_card.dart';
 
-class SettingsScreen extends ConsumerWidget {
+class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends ConsumerState<SettingsScreen> {
+  @override
+  Widget build(BuildContext context) {
+    final settings = ref.watch(appSettingsProvider);
+    final settingsNotifier = ref.read(appSettingsProvider.notifier);
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -28,22 +37,28 @@ class SettingsScreen extends ConsumerWidget {
                 _buildSliderSetting(
                   title: 'Czułość detekcji',
                   subtitle: 'Minimalna pewność detekcji',
-                  value: 0.6,
+                  value: settings.detectionConfidence,
                   min: 0.3,
                   max: 0.9,
-                  onChanged: (value) {},
+                  onChanged: (value) {
+                    settingsNotifier.setDetectionConfidence(value);
+                  },
                 ),
                 _buildToggleSetting(
                   title: 'Detekcja pieszych',
                   subtitle: 'Wykrywaj pieszych na drodze',
-                  value: true,
-                  onChanged: (value) {},
+                  value: settings.detectPedestrians,
+                  onChanged: (value) {
+                    settingsNotifier.setDetectPedestrians(value);
+                  },
                 ),
                 _buildToggleSetting(
                   title: 'Detekcja pojazdów',
                   subtitle: 'Wykrywaj samochody, ciężarówki, motocykle',
-                  value: true,
-                  onChanged: (value) {},
+                  value: settings.detectVehicles,
+                  onChanged: (value) {
+                    settingsNotifier.setDetectVehicles(value);
+                  },
                 ),
               ],
             ),
@@ -54,22 +69,28 @@ class SettingsScreen extends ConsumerWidget {
                 _buildToggleSetting(
                   title: 'Alerty dźwiękowe',
                   subtitle: 'Odtwarzaj dźwięk przy zagrożeniu',
-                  value: true,
-                  onChanged: (value) {},
+                  value: settings.enableSound,
+                  onChanged: (value) {
+                    settingsNotifier.setEnableSound(value);
+                  },
                 ),
                 _buildToggleSetting(
                   title: 'Wibracje',
                   subtitle: 'Wibruj przy krytycznych alertach',
-                  value: true,
-                  onChanged: (value) {},
+                  value: settings.enableVibration,
+                  onChanged: (value) {
+                    settingsNotifier.setEnableVibration(value);
+                  },
                 ),
                 _buildSliderSetting(
                   title: 'Głośność alertów',
                   subtitle: 'Poziom głośności dźwięków',
-                  value: 0.8,
+                  value: settings.alertVolume,
                   min: 0.0,
                   max: 1.0,
-                  onChanged: (value) {},
+                  onChanged: (value) {
+                    settingsNotifier.setAlertVolume(value);
+                  },
                 ),
               ],
             ),

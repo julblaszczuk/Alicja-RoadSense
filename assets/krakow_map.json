@@ -1,0 +1,113 @@
+{
+  "name": "Kraków - Centrum",
+  "bounds": {
+    "north": 50.12,
+    "south": 50.03,
+    "east": 20.05,
+    "west": 19.90
+  },
+  "roads": [
+    {
+      "name": "Aleje Trzech Wieszczów",
+      "type": "main",
+      "coordinates": [[50.065, 19.935], [50.068, 19.940], [50.070, 19.950]]
+    },
+    {
+      "name": "ul. Dietla",
+      "type": "main",
+      "coordinates": [[50.055, 19.945], [50.058, 19.955], [50.060, 19.965]]
+    },
+    {
+      "name": "ul. Retorycka",
+      "type": "secondary",
+      "coordinates": [[50.062, 19.930], [50.064, 19.938]]
+    },
+    {
+      "name": "ul. Piłsudskiego",
+      "type": "main",
+      "coordinates": [[50.060, 19.925], [50.062, 19.935], [50.065, 19.945]]
+    },
+    {
+      "name": "ul. Basztowa",
+      "type": "main",
+      "coordinates": [[50.068, 19.940], [50.070, 19.945], [50.072, 19.950]]
+    },
+    {
+      "name": "ul. Lubicz",
+      "type": "main",
+      "coordinates": [[50.065, 19.950], [50.067, 19.955], [50.068, 19.960]]
+    },
+    {
+      "name": "ul. Warszawska",
+      "type": "main",
+      "coordinates": [[50.070, 19.945], [50.075, 19.950], [50.080, 19.955]]
+    },
+    {
+      "name": "ul. Krupnicza",
+      "type": "secondary",
+      "coordinates": [[50.060, 19.930], [50.062, 19.935]]
+    },
+    {
+      "name": "Rynek Główny",
+      "type": "square",
+      "coordinates": [[50.061, 19.938], [50.061, 19.942], [50.064, 19.942], [50.064, 19.938]]
+    },
+    {
+      "name": "ul. Floriańska",
+      "type": "main",
+      "coordinates": [[50.064, 19.940], [50.067, 19.942], [50.070, 19.943]]
+    },
+    {
+      "name": "ul. Grodzka",
+      "type": "main",
+      "coordinates": [[50.055, 19.938], [50.058, 19.939], [50.061, 19.940]]
+    },
+    {
+      "name": "ul. Stradom",
+      "type": "main",
+      "coordinates": [[50.052, 19.940], [50.054, 19.942], [50.055, 19.945]]
+    },
+    {
+      "name": "Most Grunwaldzki",
+      "type": "bridge",
+      "coordinates": [[50.058, 19.945], [50.060, 19.950], [50.062, 19.955]]
+    },
+    {
+      "name": "ul. Kazimierza Wielkiego",
+      "type": "secondary",
+      "coordinates": [[50.055, 19.950], [50.057, 19.955]]
+    },
+    {
+      "name": "ul. Józefa",
+      "type": "secondary",
+      "coordinates": [[50.050, 19.950], [50.052, 19.952], [50.054, 19.954]]
+    }
+  ],
+  "landmarks": [
+    {
+      "name": "Wawel",
+      "type": "castle",
+      "coordinates": [50.054, 19.935]
+    },
+    {
+      "name": "Kościół Mariacki",
+      "type": "church",
+      "coordinates": [50.062, 19.940]
+    },
+    {
+      "name": "Sukiennice",
+      "type": "market",
+      "coordinates": [50.062, 19.940]
+    },
+    {
+      "name": "Barbakan",
+      "type": "monument",
+      "coordinates": [50.070, 19.944]
+    },
+    {
+      "name": "Dworzec Główny",
+      "type": "station",
+      "coordinates": [50.072, 19.947]
+    }
+  ]
+}

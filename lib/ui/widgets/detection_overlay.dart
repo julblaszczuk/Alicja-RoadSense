@@ -5,21 +5,29 @@ import '../../core/theme/design_system.dart';
 class DetectionOverlay extends StatelessWidget {
   final List<Detection> detections;
   final Detection? selectedDetection;
+  final Size imageSize;
 
   const DetectionOverlay({
     super.key,
     required this.detections,
     this.selectedDetection,
+    this.imageSize = const Size(300, 300),
   });
 
   @override
   Widget build(BuildContext context) {
-    return CustomPaint(
-      painter: _DetectionPainter(
-        detections: detections,
-        selectedDetection: selectedDetection,
-      ),
-      child: const SizedBox.expand(),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return CustomPaint(
+          painter: _DetectionPainter(
+            detections: detections,
+            selectedDetection: selectedDetection,
+            imageSize: imageSize,
+            screenSize: Size(constraints.maxWidth, constraints.maxHeight),
+          ),
+          child: const SizedBox.expand(),
+        );
+      },
     );
   }
 }
@@ -27,22 +35,31 @@ class DetectionOverlay extends StatelessWidget {
 class _DetectionPainter extends CustomPainter {
   final List<Detection> detections;
   final Detection? selectedDetection;
+  final Size imageSize;
+  final Size screenSize;
 
   _DetectionPainter({
     required this.detections,
     this.selectedDetection,
+    required this.imageSize,
+    required this.screenSize,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
+    // Oblicz skalę - obraz jest obrócony o 90 stopni
+    // Więc szerokość obrazu = wysokość ekranu i odwrotnie
+    final scaleX = screenSize.height / imageSize.width;
+    final scaleY = screenSize.width / imageSize.height;
+
     for (final detection in detections) {
       final isSelected = selectedDetection != null && 
                          selectedDetection!.trackId == detection.trackId;
-      _drawDetection(canvas, detection, isSelected);
+      _drawDetection(canvas, detection, isSelected, scaleX, scaleY);
     }
   }
 
-  void _drawDetection(Canvas canvas, Detection detection, bool isSelected) {
+  void _drawDetection(Canvas canvas, Detection detection, bool isSelected, double scaleX, double scaleY) {
     final color = _getRiskColor(detection.riskLevel);
 
     final boxPaint = Paint()
@@ -51,25 +68,25 @@ class _DetectionPainter extends CustomPainter {
       ..strokeWidth = isSelected ? 5.0 : 3.0
       ..strokeCap = StrokeCap.round;
 
-    final rect = Rect.fromLTWH(
-      detection.bbox.left,
-      detection.bbox.top,
-      detection.bbox.width,
-      detection.bbox.height,
-    );
+    // Przeskaluj i obróć współrzędne (obraz jest obrócony o 90 stopni)
+    final left = detection.bbox.top * scaleX;
+    final top = screenSize.height - (detection.bbox.left + detection.bbox.width) * scaleY;
+    final width = detection.bbox.height * scaleX;
+    final height = detection.bbox.width * scaleY;
 
+    final rect = Rect.fromLTWH(left, top, width, height);
     final rrect = RRect.fromRectAndRadius(rect, const Radius.circular(8));
     canvas.drawRRect(rrect, boxPaint);
 
-    _drawLabel(canvas, detection, color);
-    _drawTTC(canvas, detection, color);
+    _drawLabel(canvas, detection, color, left, top);
+    _drawTTC(canvas, detection, color, left, top, height);
 
     if (detection.riskLevel == RiskLevel.critical) {
       _drawPulseEffect(canvas, rect, color);
     }
   }
 
-  void _drawLabel(Canvas canvas, Detection detection, Color color) {
+  void _drawLabel(Canvas canvas, Detection detection, Color color, double left, double top) {
     final label = '${detection.label} ${(detection.confidence * 100).toInt()}%';
 
     final textPainter = TextPainter(
@@ -89,8 +106,8 @@ class _DetectionPainter extends CustomPainter {
 
     final labelRect = RRect.fromRectAndRadius(
       Rect.fromLTWH(
-        detection.bbox.left,
-        detection.bbox.top - textPainter.height - 8,
+        left,
+        top - textPainter.height - 8,
         textPainter.width + 12,
         textPainter.height + 8,
       ),
@@ -104,11 +121,11 @@ class _DetectionPainter extends CustomPainter {
 
     textPainter.paint(
       canvas,
-      Offset(detection.bbox.left + 6, detection.bbox.top - textPainter.height - 4),
+      Offset(left + 6, top - textPainter.height - 4),
     );
   }
 
-  void _drawTTC(Canvas canvas, Detection detection, Color color) {
+  void _drawTTC(Canvas canvas, Detection detection, Color color, double left, double top, double height) {
     if (detection.ttc == null) return;
 
     final textPainter = TextPainter(
@@ -128,8 +145,8 @@ class _DetectionPainter extends CustomPainter {
 
     final ttcRect = RRect.fromRectAndRadius(
       Rect.fromLTWH(
-        detection.bbox.left,
-        detection.bbox.bottom + 4,
+        left,
+        top + height + 4,
         textPainter.width + 12,
         textPainter.height + 8,
       ),
@@ -143,7 +160,7 @@ class _DetectionPainter extends CustomPainter {
 
     textPainter.paint(
       canvas,
-      Offset(detection.bbox.left + 6, detection.bbox.bottom + 8),
+      Offset(left + 6, top + height + 8),
     );
   }
 
@@ -176,6 +193,8 @@ class _DetectionPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _DetectionPainter oldDelegate) {
     return oldDelegate.detections != detections ||
-           oldDelegate.selectedDetection != selectedDetection;
+           oldDelegate.selectedDetection != selectedDetection ||
+           oldDelegate.imageSize != imageSize ||
+           oldDelegate.screenSize != screenSize;
   }
 }

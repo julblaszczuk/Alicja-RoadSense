@@ -3,11 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:camera/camera.dart';
 
 import '../../main.dart';
-import '../../ai/vision_engine.dart';
+import '../../ai/vision_engine_yolov8.dart';
 import '../../ai/models.dart';
 import '../../ai/road_calibration.dart';
 import '../../ai/road_map_system.dart';
 import '../../core/theme/design_system.dart';
+import '../../core/settings_provider.dart';
+import '../../core/alert_manager.dart';
 import '../widgets/detection_overlay.dart';
 import '../widgets/risk_indicator.dart';
 import '../widgets/speed_display.dart';
@@ -25,6 +27,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     with TickerProviderStateMixin {
   CameraController? _cameraController;
   late VisionEngine _visionEngine;
+  final AlertManager _alertManager = AlertManager();
   final RoadCalibration _calibration = RoadCalibration();
   final RoadMapSystem _roadMap = RoadMapSystem();
   
@@ -62,6 +65,18 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     super.initState();
     _initializeCamera();
     _visionEngine = VisionEngine();
+    
+    // Nasłuchuj zmian ustawień
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final settings = ref.read(appSettingsProvider);
+      _visionEngine.setConfidenceThreshold(settings.detectionConfidence);
+      _alertManager.setSettings(settings);
+      
+      ref.listen<AppSettings>(appSettingsProvider, (previous, next) {
+        _visionEngine.setConfidenceThreshold(next.detectionConfidence);
+        _alertManager.setSettings(next);
+      });
+    });
   }
 
   Future<void> _initializeCamera() async {
@@ -131,12 +146,17 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
       final detections = await _visionEngine.detect(image);
       if (mounted) {
         setState(() {
-          _detections = detections;
+          _detections = detections; // Zastąp wyniki, nie dodawaj
           _checkForAlerts(detections);
         });
       }
     } catch (e) {
       debugPrint('Detection error: $e');
+      if (mounted) {
+        setState(() {
+          _detections = []; // Wyczyść przy błędzie
+        });
+      }
     } finally {
       _isProcessing = false;
     }
@@ -155,6 +175,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
             _showAlert = true;
             _alertMessage = '${detection.label} wykryty!';
           });
+
+          // Odtwórz alert dźwiękowy i wibrację
+          _alertManager.playAlert(
+            soundAsset: 'sounds/alert_critical.wav',
+            vibrate: detection.riskLevel == RiskLevel.critical,
+          );
 
           Future.delayed(const Duration(seconds: 3), () {
             if (mounted) {
@@ -221,14 +247,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
   bool _shouldNotify(Detection detection) {
     final label = detection.label.toLowerCase();
     
-    if (label == 'car' || label == 'truck' || label == 'bus' || label == 'motorcycle') {
+    if (label == 'car' || label == 'truck' || label == 'bus' || label == 'motorcycle' || label == 'rider' || label == 'train') {
       return _notifyVehicle;
     }
     if (label == 'person') return _notifyPedestrian;
-    if (label == 'traffic light' || label == 'stop sign') return _notifyTrafficLight;
-    if (label == 'cat' || label == 'dog' || label == 'horse' || label == 'bird') {
-      return _notifyAnimal;
-    }
+    if (label == 'traffic light' || label == 'traffic sign') return _notifyTrafficLight;
+    if (label == 'bicycle') return _notifyCollision;
     return _notifyCollision;
   }
 
@@ -296,6 +320,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
   void dispose() {
     _cameraController?.dispose();
     _visionEngine.dispose();
+    _alertManager.dispose();
     super.dispose();
   }
 
@@ -337,7 +362,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     }
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Colors.black,
+      extendBody: true,
       body: GestureDetector(
         onTapDown: _onTap,
         child: Stack(
@@ -346,6 +372,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
             DetectionOverlay(
               detections: _detections,
               selectedDetection: _selectedDetection,
+              imageSize: const Size(300, 300),
             ),
             
             // Calibration overlay
@@ -439,13 +466,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                 top: 300,
                 child: _buildNotificationPanel(),
               ),
-            
-            // Record button (right side)
-            Positioned(
-              right: 20,
-              bottom: 180,
-              child: _buildRecordButton(),
-            ),
             
             // Bottom bar - Navigation
             Positioned(
@@ -1042,18 +1062,18 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
   Widget _buildBottomBar() {
     return Container(
       padding: const EdgeInsets.fromLTRB(
+        AppSpacing.sm,
+        AppSpacing.xs,
+        AppSpacing.sm,
         AppSpacing.md,
-        AppSpacing.md,
-        AppSpacing.md,
-        AppSpacing.xl,
       ),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.bottomCenter,
           end: Alignment.topCenter,
           colors: [
-            AppColors.background.withOpacity(0.95),
-            AppColors.background.withOpacity(0.7),
+            Colors.black.withOpacity(0.4),
+            Colors.black.withOpacity(0.1),
             Colors.transparent,
           ],
         ),
@@ -1061,34 +1081,147 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _buildNavItem(
-            icon: Icons.map_outlined,
-            label: 'Nawigacja',
-            onTap: () {},
+          Expanded(
+            child: _buildNavItem(
+              icon: Icons.map_outlined,
+              label: 'Nawigacja',
+              onTap: () {
+                _showNavigationPanel();
+              },
+            ),
           ),
-          _buildNavItem(
-            icon: Icons.phone_outlined,
-            label: 'Telefon',
-            onTap: () {},
+          Expanded(
+            child: _buildNavItem(
+              icon: Icons.phone_outlined,
+              label: 'Telefon',
+              onTap: () {},
+            ),
           ),
-          _buildNavItem(
-            icon: Icons.send_outlined,
-            label: 'Wyślij',
-            onTap: () {},
+          Expanded(
+            child: _buildRecordNavItem(),
           ),
-          _buildNavItem(
-            icon: Icons.history_outlined,
-            label: 'Historia',
-            onTap: () {
-              Navigator.pushNamed(context, '/history');
-            },
+          Expanded(
+            child: _buildNavItem(
+              icon: Icons.history_outlined,
+              label: 'Historia',
+              onTap: () {
+                Navigator.pushNamed(context, '/history');
+              },
+            ),
           ),
-          _buildNavItem(
-            icon: Icons.settings_outlined,
-            label: 'Ustawienia',
-            onTap: () {
-              Navigator.pushNamed(context, '/settings');
-            },
+          Expanded(
+            child: _buildNavItem(
+              icon: Icons.settings_outlined,
+              label: 'Ustawienia',
+              onTap: () {
+                Navigator.pushNamed(context, '/settings');
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showNavigationPanel() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        decoration: BoxDecoration(
+          color: AppColors.surface.withOpacity(0.95),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
+          border: Border.all(color: AppColors.primary, width: 2),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.navigation, color: AppColors.primary, size: 28),
+                const SizedBox(width: AppSpacing.md),
+                Text(
+                  'Nawigacja',
+                  style: AppTypography.h2.copyWith(color: AppColors.primary),
+                ),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.close, color: AppColors.textSecondary),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            TextField(
+              decoration: InputDecoration(
+                hintText: 'Dokąd chcesz jechać?',
+                prefixIcon: const Icon(Icons.search),
+                filled: true,
+                fillColor: AppColors.glass,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('MapBox nawigacja - w przygotowaniu'),
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.route),
+                label: const Text('Wyznacz trasę'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+                ),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.md),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRecordNavItem() {
+    return GestureDetector(
+      onTap: _toggleRecording,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(AppSpacing.sm),
+            decoration: BoxDecoration(
+              color: _isRecording ? AppColors.danger.withOpacity(0.2) : AppColors.glass,
+              borderRadius: BorderRadius.circular(AppRadius.md),
+              border: Border.all(
+                color: _isRecording ? AppColors.danger : AppColors.borderLight,
+                width: _isRecording ? 2 : 1,
+              ),
+            ),
+            child: Icon(
+              _isRecording ? Icons.stop : Icons.fiber_manual_record,
+              color: _isRecording ? AppColors.danger : AppColors.textPrimary,
+              size: 24,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            _isRecording ? 'Stop' : 'Nagrywaj',
+            style: AppTypography.caption.copyWith(
+              fontSize: 10,
+              color: _isRecording ? AppColors.danger : null,
+            ),
           ),
         ],
       ),
@@ -1158,14 +1291,14 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
         return Icons.pedal_bike;
       case 'person':
         return Icons.person;
+      case 'rider':
+        return Icons.sports_motorsports;
+      case 'train':
+        return Icons.train;
       case 'traffic light':
         return Icons.traffic;
-      case 'stop sign':
-        return Icons.stop;
-      case 'cat':
-        return Icons.pets;
-      case 'dog':
-        return Icons.pets;
+      case 'traffic sign':
+        return Icons.signpost;
       default:
         return Icons.search;
     }
